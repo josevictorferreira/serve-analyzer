@@ -8,43 +8,30 @@
   outputs =
     { self, nixpkgs }:
     let
-      # Platform: darwin (macOS) only for this project
-      system = "aarch64-darwin";
-      pkgs = import nixpkgs { inherit system; };
+      mkDevShell = system: pkgs:
+        pkgs.mkShell {
+          buildInputs = with pkgs; [
+            python3
+            python3Packages.jupyter
+            python3Packages.notebook
+            python3Packages.numpy
+            python3Packages.scipy
+            python3Packages.matplotlib
+            python3Packages.pandas
+            python3Packages.opencv4
+            python3Packages.pillow
+            python3Packages.scikit-image
+            ffmpeg
+            python3Packages.ipykernel
+          ];
+
+          shellHook = ''
+            export PYTHONPATH="$PWD:$PYTHONPATH"
+          '';
+        };
     in
     {
-      devShells.${system}.default = pkgs.mkShell {
-        # Build-time dependencies
-        buildInputs = [
-          # Python interpreter
-          pkgs.python3
-
-          # Jupyter and notebook
-          pkgs.python3Packages.jupyter
-          pkgs.python3Packages.notebook
-
-          # Numerical and scientific computing
-          pkgs.python3Packages.numpy
-          pkgs.python3Packages.scipy
-          pkgs.python3Packages.matplotlib
-          pkgs.python3Packages.pandas
-
-          # Image and video processing
-          pkgs.python3Packages.opencv4
-          pkgs.python3Packages.pillow
-          pkgs.python3Packages.scikit-image
-
-          # Video loading (ffmpeg used by imageio/cv2)
-          pkgs.ffmpeg_6
-
-          # Jupyter kernel for notebook
-          pkgs.python3Packages.ipykernel
-        ];
-
-        # Shell hook to ensure Jupyter can find the kernel
-        shellHook = ''
-          export PYTHONPATH="$PWD:$PYTHONPATH"
-        '';
-      };
+      devShells.x86_64-linux.default = mkDevShell "x86_64-linux" (import nixpkgs { system = "x86_64-linux"; });
+      devShells.aarch64-darwin.default = mkDevShell "aarch64-darwin" (import nixpkgs { system = "aarch64-darwin"; });
     };
 }
