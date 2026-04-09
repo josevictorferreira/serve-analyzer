@@ -8,30 +8,42 @@
   outputs =
     { self, nixpkgs }:
     let
-      mkDevShell = system: pkgs:
+      mkDevShell =
+        system: pkgs:
+        let
+          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+            jupyter
+            notebook
+            jupyterlab
+            numpy
+            scipy
+            matplotlib
+            pandas
+            opencv4
+            pillow
+            scikit-image
+            ipykernel
+            ipympl
+          ]);
+        in
         pkgs.mkShell {
-          buildInputs = with pkgs; [
-            python3
-            python3Packages.jupyter
-            python3Packages.notebook
-            python3Packages.numpy
-            python3Packages.scipy
-            python3Packages.matplotlib
-            python3Packages.pandas
-            python3Packages.opencv4
-            python3Packages.pillow
-            python3Packages.scikit-image
-            ffmpeg
-            python3Packages.ipykernel
+          buildInputs = [
+            pythonEnv
+            pkgs.ffmpeg
           ];
 
           shellHook = ''
             export PYTHONPATH="$PWD:$PYTHONPATH"
+            export JUPYTER_PATH="${pkgs.python3Packages.notebook}/share/jupyter:${pkgs.python3Packages.jupyterlab}/share/jupyter"
           '';
         };
     in
     {
-      devShells.x86_64-linux.default = mkDevShell "x86_64-linux" (import nixpkgs { system = "x86_64-linux"; });
-      devShells.aarch64-darwin.default = mkDevShell "aarch64-darwin" (import nixpkgs { system = "aarch64-darwin"; });
+      devShells.x86_64-linux.default = mkDevShell "x86_64-linux" (
+        import nixpkgs { system = "x86_64-linux"; }
+      );
+      devShells.aarch64-darwin.default = mkDevShell "aarch64-darwin" (
+        import nixpkgs { system = "aarch64-darwin"; }
+      );
     };
 }

@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 import sys
 
-from serve_analyzer.cli import run_analysis, InteractiveCalibrator
+from serve_analyzer.cli import InteractiveCalibrator
 
 class TestCLIInteractiveDisplayFrame(unittest.TestCase):
     def test_default_display_frame_uses_start_frame(self):
