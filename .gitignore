@@ -1,5 +1,42 @@
-IMG_9259.MOV
-
+# Python
 __pycache__/
+*.pyc
+.venv/
+
+# OS
 .DS_Store
 
+# Videos (may contain personal data)
+*.mov
+*.MOV
+*.mp4
+*.MP4
+*.avi
+*.AVI
+*.mkv
+*.webm
+
+# Images (may contain personal data)
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.png
+*.PNG
+*.gif
+*.heic
+*.HEIC
+
+# Model weights (large files)
+*.pt
+*.onnx
+
+# Frame samples
+frame_samples/
+
+# Cloned research repos (not project code)
+Color-Based-Ball-Tracking-With-OpenCV/
+OpenCV-Python-Tutorial/
+TrackNet/
+TrackNetV4/
+yolov5/

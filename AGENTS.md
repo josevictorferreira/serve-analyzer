@@ -15,7 +15,8 @@ Tennis serve velocity estimation from lateral video. Python package using OpenCV
 │   ├── __init__.py
 │   ├── __main__.py        # Thin wrapper → cli.main()
 │   ├── analysis.py        # Core: scale_factor, velocity_series, track_ball_template
-│   └── cli.py             # CLI entry + InteractiveCalibrator
+│   ├── cli.py             # CLI entry + InteractiveCalibrator
+│   └── plot_serve.py      # Speed graph generator script
 ├── tests/                 # unittest TestCases
 ├── notebooks/             # Jupyter analysis notebooks
 └── .sisyphus/             # Sisyphus tooling (not project code)
@@ -24,11 +25,7 @@ Tennis serve velocity estimation from lateral video. Python package using OpenCV
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| Core velocity math | `serve_analyzer/analysis.py` | `compute_scale_factor()`, `compute_velocity_series()` |
-| Ball tracking | `serve_analyzer/analysis.py` | `track_ball_template()` - template matching |
-| CLI + calibration | `serve_analyzer/cli.py` | `InteractiveCalibrator`, `run_analysis()` |
-| Tests | `tests/test_analysis.py` | TestComputeScaleFactor, TestComputeVelocitySeries |
-| CLI tests | `tests/test_cli_defaults.py` | CLI argument defaults |
+| Speed graph script | `serve_analyzer/plot_serve.py` | Generates matplotlib speed profile from video |
 
 ## CONVENTIONS (THIS PROJECT)
 - **No pyproject.toml/setup.cfg** — Nix flake is the ONLY build/dep mechanism
@@ -55,8 +52,14 @@ nix develop
 # Run analysis (interactive)
 python -m serve_analyzer.cli video.mp4 --real-distance 1.0
 
-# Run analysis (scripted)
-python -m serve_analyzer.cli video.mp4 --cal-p1 100 200 --cal-p2 400 200 --real-distance 1.0 --ball-pos 320 240
+# Generate speed graph (scripted, non-interactive)
+python -m serve_analyzer.plot_serve video.mp4 \
+    --cal-p1 100 200 \
+    --cal-p2 400 200 \
+    --real-distance 1.0 \
+    --ball-pos 320 240 \
+    --start-frame 50 \
+    --output speed_graph.png
 
 # Run tests
 python -m unittest discover -s tests -v
