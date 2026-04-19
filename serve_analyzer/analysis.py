@@ -769,7 +769,7 @@ def track_ball_yolo(
     video_path: str,
     start_frame: int,
     initial_center: Tuple[int, int],
-    model_path: str = "yolov8n.pt",
+    model_path: str = "rjtp",
     max_frames: Optional[int] = None,
     conf_threshold: float = 0.25,
     search_radius: int = 300,
@@ -786,7 +786,7 @@ def track_ball_yolo(
         video_path: Path to video file
         start_frame: Frame number to start tracking
         initial_center: Initial ball position (x, y) - used to identify which detection is the ball
-        model_path: Path to YOLO model weights (default: yolov8n.pt, will auto-download)
+        model_path: Path to YOLO model weights or 'rjtp' for RJTPP tennis-ball model (default: rjtp)
         max_frames: Maximum frames to track (None = until end)
         conf_threshold: Minimum confidence for detection (default 0.25)
         search_radius: Max distance from previous position to consider same ball
@@ -821,7 +821,16 @@ def track_ball_yolo(
         raise ValueError(f"Start frame {start_frame} out of range [0, {total_frames})")
     
     # Load YOLO model
-    print(f"Loading YOLO model: {model_path}")
+    # Resolve model alias and download if needed
+    _is_rjtp = model_path in ("rjtp", "RJTPP/tennis-ball-detection")
+    if _is_rjtp:
+        from huggingface_hub import hf_hub_download
+        model_path = hf_hub_download(
+            repo_id="RJTPP/tennis-ball-detection", filename="best.pt"
+        )
+        print(f"Using RJTPP tennis-ball model: {model_path}")
+    else:
+        print(f"Loading YOLO model: {model_path}")
     model = YOLO(model_path)
     
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
@@ -843,9 +852,8 @@ def track_ball_yolo(
             fourcc, fps, (w, h)
         )
     
-    # Classes that could be a ball (sports ball is class 32 in COCO)
-    # But we'll also accept any small circular detection near expected position
-    BALL_CLASSES = [32]  # sports ball
+    # Track static false positives to filter them out
+    static_positions = []  # positions that appear in multiple frames without moving
     
     while cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
         ret, frame = cap.read()
@@ -862,38 +870,59 @@ def track_ball_yolo(
         
         found = False
         new_center = last_pos
-        best_dist = float('inf')
+        best_score = -1  # Use score instead of just distance
         
         # Process detections
         if len(results) > 0 and results[0].boxes is not None:
             boxes = results[0].boxes
+            candidates = []
+            
             for i in range(len(boxes)):
                 # Get box center
                 x1, y1, x2, y2 = boxes.xyxy[i].cpu().numpy()
                 cx = (x1 + x2) / 2
                 cy = (y1 + y2) / 2
+                conf = float(boxes.conf[i])
                 box_w = x2 - x1
                 box_h = y2 - y1
                 
+                # Check if this is a known static false positive
+                is_static = False
+                for sx, sy in static_positions:
+                    if abs(cx - sx) < 50 and abs(cy - sy) < 50:
+                        is_static = True
+                        break
+                
+                if is_static:
+                    continue  # Skip static false positives
+                
                 # Check if this could be a ball:
-                # 1. Small-ish box (ball shouldn't be huge)
-                # 2. Roughly square aspect ratio
-                # 3. Near expected position
                 is_small = box_w < 200 and box_h < 200
                 is_square = 0.5 < (box_w / max(box_h, 1)) < 2.0
                 dist = np.sqrt((cx - last_pos[0])**2 + (cy - last_pos[1])**2)
                 is_near = dist < search_radius
                 
-                # Also check class (sports ball = 32)
-                cls_id = int(boxes.cls[i].cpu().numpy())
-                is_ball_class = cls_id in BALL_CLASSES
+                if is_small and is_square and is_near:
+                    # Score: prefer high confidence and reasonable distance
+                    # Penalize detections that are too close (static) or too far (wrong object)
+                    if frames_tracked > 0 and dist < 10:
+                        # Suspiciously static - might be false positive
+                        score = conf * 0.3  # Heavy penalty
+                    else:
+                        score = conf
+                    candidates.append((cx, cy, conf, score, dist))
+            
+            # Choose best candidate
+            if candidates:
+                # Sort by score (highest first)
+                candidates.sort(key=lambda x: x[3], reverse=True)
+                cx, cy, conf, score, dist = candidates[0]
+                new_center = (float(cx), float(cy))
+                found = True
                 
-                # Accept if it's a ball class OR if it's small, square, and nearby
-                if (is_ball_class or (is_small and is_square)) and is_near:
-                    if dist < best_dist:
-                        best_dist = dist
-                        new_center = (float(cx), float(cy))
-                        found = True
+                # If this detection is very static, mark it as potential false positive
+                if frames_tracked > 2 and dist < 10:
+                    static_positions.append((cx, cy))
         
         if found:
             lost_count = 0

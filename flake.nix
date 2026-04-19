@@ -32,25 +32,35 @@
           buildInputs = [
             pythonEnv
             pkgs.ffmpeg
+            pkgs.zlib
+            pkgs.stdenv.cc.cc.lib
           ];
-
           shellHook = ''
             export PYTHONPATH="$PWD:$PYTHONPATH"
             export JUPYTER_PATH="${pkgs.python3Packages.notebook}/share/jupyter:${pkgs.python3Packages.jupyterlab}/share/jupyter"
-
-            # Create venv for pip packages not in nixpkgs (e.g., ultralytics)
+            export LD_LIBRARY_PATH="${pkgs.zlib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
+            # Create venv for pip packages not in nixpkgs
             if [ ! -d .venv ]; then
-              echo "Creating .venv for pip packages (ultralytics)..."
+              echo "Creating .venv for pip packages (ultralytics, roboflow)..."
               python -m venv .venv --system-site-packages
             fi
             source .venv/bin/activate
 
-            # Install ultralytics if not present (without opencv since nix provides it)
+            # Install ultralytics + roboflow if not present
             if ! python -c "import ultralytics" 2>/dev/null; then
               echo "Installing ultralytics (without opencv-python)..."
               pip install --quiet ultralytics --no-deps
               pip install --quiet torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
               pip install --quiet py-cpuinfo psutil pyyaml tqdm requests pandas seaborn
+            fi
+            # Install huggingface_hub for RJTPP model download
+            if ! python -c "import huggingface_hub" 2>/dev/null; then
+              echo "Installing huggingface_hub..."
+              pip install --quiet huggingface_hub
+            fi
+            if ! python -c "import roboflow" 2>/dev/null; then
+              echo "Installing roboflow..."
+              pip install --quiet roboflow
             fi
           '';
         };

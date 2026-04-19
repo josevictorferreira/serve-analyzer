@@ -187,8 +187,8 @@ Examples:
     parser.add_argument(
         "--search-radius",
         type=int,
-        default=100,
-        help="Search radius around previous position (default: 100)",
+        default=300,
+        help="Search radius around previous position (default: 300 for fast-moving balls)",
     )
     parser.add_argument(
         "--smoothing-window",
@@ -200,7 +200,7 @@ Examples:
         "--confidence",
         type=float,
         default=0.5,
-        help="Template match confidence threshold 0-1 (default: 0.5, lower=more lenient)",
+        help="Detection confidence threshold 0-1 (default: 0.5 for template, 0.1 for YOLO)",
     )
     parser.add_argument(
         "--debug-tracking",
@@ -229,8 +229,8 @@ Examples:
     )
     parser.add_argument(
         "--yolo-model",
-        default="yolov8n.pt",
-        help="YOLO model weights file (default: yolov8n.pt, auto-downloads)",
+        default="rjtp",
+        help="YOLO model weights file or 'rjtp' for tennis-ball model (default: rjtp)",
     )
     parser.add_argument(
         "--output", "-o", help="Save plot to file instead of displaying"
@@ -282,12 +282,15 @@ Examples:
         print(f"\nTracking from frame {args.start_frame}...")
         if args.yolo_tracking:
             print("Using YOLO deep learning detector")
+            # YOLO needs lower confidence threshold than template matching
+            yolo_conf = args.confidence if args.confidence != 0.5 else 0.1
             centers = track_ball_yolo(
                 args.video,
                 args.start_frame,
                 ball_pos,
                 model_path=args.yolo_model,
                 max_frames=args.max_frames,
+                conf_threshold=yolo_conf,
                 search_radius=args.search_radius,
                 debug_output=args.video_output if args.debug_tracking else None,
             )

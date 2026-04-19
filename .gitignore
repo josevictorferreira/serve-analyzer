@@ -40,3 +40,21 @@ OpenCV-Python-Tutorial/
 TrackNet/
 TrackNetV4/
 yolov5/
+tennis-tracking/
+YOLOv8-DeepSORT-Object-Tracking/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Debug/session artifacts
+context_*.md
+context_*.json
+cache.pkl
+roboflow_test.json
+serves_analysis.json
+
+# Ruff cache
+.ruff_cache/
