@@ -42,6 +42,8 @@ TrackNetV4/
 yolov5/
 tennis-tracking/
 YOLOv8-DeepSORT-Object-Tracking/
+tennis-analysis-with-cv/
+tennis_serve_speed/
 
 # Jupyter
 .ipynb_checkpoints/

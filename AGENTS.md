@@ -114,3 +114,13 @@ jupyter notebook notebooks/
 **Lesson:** Use `frame_skip=4` for practical default speed, but test `frame_skip=2` when count/ranking quality is the blocker.
 **Context:** Denser tracking materially improved candidate-pool quality on `video.mov`, even when selector quality still lagged.
 **Verify:** Compare `python -m serve_analyzer.serve_attempts video.mov --frame-skip 2|4 --output out.json`
+
+### Autonomous serve count trigger
+**Lesson:** Use omitted `--expected-serves` / `expected_serves=None` to enable autonomous count inference; use a positive integer only when forcing an exact count.
+**Context:** The detector treats `None` as inference mode, while `0` or negative counts are invalid and do not mean “auto”.
+**Verify:** `python -m serve_analyzer.serve_attempts video.mov --output out.json` shows `"count_inferred": true`; adding `--expected-serves 8` flips it to false.
+
+### Ignore nested research repos
+**Lesson:** Add cloned research repos or other nested `.git` directories to `.gitignore` before `git add`; if staged accidentally, remove them from the outer index with `git rm --cached -r -f`.
+**Context:** Embedded repos trigger add warnings and pollute outer-repo commits without including their contents.
+**Verify:** `git status --short` should not show `tennis-analysis-with-cv/` or `tennis_serve_speed/` in the outer repo.
