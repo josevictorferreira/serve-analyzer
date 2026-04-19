@@ -1,5 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
+Before starting any implementation, read `AGENTS.md or CLAUDE.md` for project-specific lessons and gotchas.
+
 **Generated:** 2026-04-03
 **Commit:** e9e132f
 **Branch:** main
@@ -97,3 +99,18 @@ jupyter notebook notebooks/
 **Lesson:** Run via nix develop + venv activation for ultralytics access.
 **Context:** YOLO requires ultralytics which is installed in .venv, not nix directly.
 **Verify:** `nix develop --command bash -c "source .venv/bin/activate; python -m serve_analyzer.multi_serve -h"`
+
+### Keep serve detection and evaluation split
+**Lesson:** Keep `serve_analyzer.serve_attempts` detector-only; put timestamp parsing/matching in `serve_analyzer.serve_evaluation` only.
+**Context:** Mixing timestamps into detector flow invalidates real inference and caused a full redesign.
+**Verify:** `python -m serve_analyzer.serve_attempts video.mov --output out.json` runs without `--timestamps-file`
+
+### Candidate pool is stronger than selector
+**Lesson:** Trust multi-profile candidate generation first; tune final ranking/suppression carefully instead of rewriting detection.
+**Context:** Real serves were already present in the candidate pool; most failures came from over-aggressive top-K ranking.
+**Verify:** Run detector then evaluator and compare `selected_serves` vs post-hoc matched `attempts`
+
+### Frame skip changes pool quality
+**Lesson:** Use `frame_skip=4` for practical default speed, but test `frame_skip=2` when count/ranking quality is the blocker.
+**Context:** Denser tracking materially improved candidate-pool quality on `video.mov`, even when selector quality still lagged.
+**Verify:** Compare `python -m serve_analyzer.serve_attempts video.mov --frame-skip 2|4 --output out.json`

@@ -1,0 +1,8 @@
+- 1st serve - 13 seconds
+- 2nd serve - 19 seconds
+- 3rd serve - 28 seconds
+- 4th serve - 32 seconds
+- 5th serve - 37 seconds
+- 6th serve - 48 seconds
+- 7th serve - 52 seconds
+- 8th serve - 1 minute and 2 seconds 
