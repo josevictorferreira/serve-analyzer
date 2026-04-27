@@ -1,0 +1,80 @@
+{
+  "active_plan": "/home/josevictor/Workspace/serve-analyzer/.sisyphus/plans/web-serve-analysis-app.md",
+  "started_at": "2026-04-21T14:37:13.996Z",
+  "session_ids": [
+    "ses_24f95d8c6fferunh23wv3fXwUq",
+    "ses_24e3b9171ffeuhL0ElKppzd7no",
+    "ses_24e3b8faaffeUJv7bepZ1GnxDT",
+    "ses_24abb051dffeF3EqhRz2cZiyR7",
+    "ses_24abb0215ffe6hxq78K7WBz4nk",
+    "ses_24abb0211ffePkqLxXuG2TsqUE",
+    "ses_249930facffe3RnZ2yOeprEGo9",
+    "ses_249930e64ffeFJtVnQFdYzftOg",
+    "ses_2497fd0adffeqqAgM9KvgLuXdT",
+    "ses_2497fcf28ffecufqGmxfTbAZ7m",
+    "ses_248da870fffej8swuZ6gzurRRU",
+    "ses_245a7fb36ffeuRKa1kB9YeC1e0",
+    "ses_245a7ca18ffeLO35bH2jJH8UtJ",
+    "ses_2458e7c14ffezsPUUDPN4EE5nR",
+    "ses_2458e138dffeyeP64Vv0wWBtBG",
+    "ses_24527a9bcffeOIeVBpCSm5blu5"
+  ],
+  "session_origins": {
+    "ses_24f95d8c6fferunh23wv3fXwUq": "direct",
+    "ses_24e3b9171ffeuhL0ElKppzd7no": "appended",
+    "ses_24e3b8faaffeUJv7bepZ1GnxDT": "appended",
+    "ses_24abb051dffeF3EqhRz2cZiyR7": "appended",
+    "ses_24abb0215ffe6hxq78K7WBz4nk": "appended",
+    "ses_24abb0211ffePkqLxXuG2TsqUE": "appended",
+    "ses_249930facffe3RnZ2yOeprEGo9": "appended",
+    "ses_249930e64ffeFJtVnQFdYzftOg": "appended",
+    "ses_2497fd0adffeqqAgM9KvgLuXdT": "appended",
+    "ses_2497fcf28ffecufqGmxfTbAZ7m": "appended",
+    "ses_248da870fffej8swuZ6gzurRRU": "appended",
+    "ses_245a7fb36ffeuRKa1kB9YeC1e0": "appended",
+    "ses_245a7ca18ffeLO35bH2jJH8UtJ": "appended",
+    "ses_2458e7c14ffezsPUUDPN4EE5nR": "appended",
+    "ses_2458e138dffeyeP64Vv0wWBtBG": "appended",
+    "ses_24527a9bcffeOIeVBpCSm5blu5": "appended"
+  },
+  "plan_name": "web-serve-analysis-app",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Create the local FastAPI backend skeleton under `web/backend`",
+      "session_id": "ses_24f458546ffe3zStrx6vAfZTcH",
+      "agent": "Sisyphus-Junior",
+      "category": "business-logic",
+      "updated_at": "2026-04-21T15:51:29.096Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Implement the serve-analysis adapter and single-job runner",
+      "session_id": "ses_24f3942f0ffevzck4jdWtXWeOT",
+      "agent": "Sisyphus-Junior",
+      "category": "business-logic",
+      "updated_at": "2026-04-21T16:07:17.816Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Generate temporary H.264 serve clips from selected serves",
+      "session_id": "ses_24f2e95c7ffeTpbRtflFa4ysg9",
+      "agent": "Sisyphus-Junior",
+      "category": "general",
+      "updated_at": "2026-04-21T16:17:19.372Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_24eeada25ffer8SeT4n3fjJL6h",
+      "agent": "Sisyphus-Junior",
+      "category": "most-capable",
+      "updated_at": "2026-04-21T17:28:49.900Z"
+    }
+  }
+}

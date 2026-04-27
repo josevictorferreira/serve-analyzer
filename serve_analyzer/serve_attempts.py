@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from serve_analyzer.multi_serve import (
     analyze_serve,
     compute_frame_velocities,
+    compute_horizontal_velocity,
     compute_vertical_velocity,
     detect_ball_yolo,
     detect_serve_events,
@@ -71,7 +72,7 @@ def detect_serve_candidates(
     conf_threshold: float = 0.20,
     frame_skip: int = 1,
     start_frame: int = 0,
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """Detect serve candidates and compute post-contact velocity stats."""
     if frame_skip < 1:
         raise ValueError("frame_skip must be at least 1")
@@ -87,11 +88,14 @@ def detect_serve_candidates(
     positions = interpolate_missing_detections(raw_detections, max_gap=15)
     velocities = compute_frame_velocities(positions, fps)
     vert_velocities = compute_vertical_velocity(positions)
+    horiz_velocities = compute_horizontal_velocity(positions)
 
     effective_scale = scale_factor
     if estimated_scale is not None and scale_factor == 0.001:
         effective_scale = float(estimated_scale)
 
+    # Use a generous pool default when autonomous; 12 is the historical default.
+    # detect_serve_events expects a positive int for pool sizing.
     expected = expected_serves if expected_serves is not None else 12
     if expected < 1:
         raise ValueError("expected_serves must be at least 1")
@@ -124,6 +128,7 @@ def detect_serve_candidates(
             positions,
             velocities,
             vert_velocities,
+            horiz_velocities=horiz_velocities,
             fps=fps,
             **profile,
         )
@@ -165,9 +170,20 @@ def detect_serve_candidates(
                 ),
                 "drop_after_apex": float(event.get("drop_after_apex", 0.0)),
                 "frames_after_apex": int(frames_after_apex),
+                "rightward_fraction": float(event.get("rightward_fraction", 0.0)),
+                "net_rightward_displacement": float(
+                    event.get("net_rightward_displacement", 0.0)
+                ),
+                "direction_unreliable": bool(event.get("direction_unreliable", False)),
+                "toss_rise_px": float(event.get("toss_rise_px", 0.0)),
+                "toss_duration_frames": int(event.get("toss_duration_frames", 0)),
+                "early_post_downward_fraction": float(
+                    event.get("early_post_downward_fraction", 0.0)
+                ),
+                "early_post_net_dy": float(event.get("early_post_net_dy", 0.0)),
             }
         )
-    return candidates
+    return {"candidates": candidates, "positions": positions, "frame_skip": frame_skip}
 
 
 def infer_serve_count(
@@ -227,6 +243,38 @@ def select_serves(
     if not candidates:
         return []
     if expected_serves is not None and expected_serves <= 0:
+        return []
+
+    # Hard-reject candidates with contradictory or absent rightward motion.
+    # These cannot be serves: ball must move left-to-right after contact.
+    # Safety net for events that survive detector gating via merge.
+    filtered = []
+    for c in candidates:
+        rf = float(c.get("rightward_fraction", 0.0))
+        nrd = float(c.get("net_rightward_displacement", 0.0))
+        drop_val = float(c.get("drop_after_apex", 0.0))
+        # NOTE: contradictory direction (rf≥0.5 but nrd<0) handled by
+        # selector ranking penalty, not hard reject — avoids over-pruning.
+
+        # No significant motion at all
+        if abs(drop_val) < 10 and abs(nrd) < 20:
+            continue
+        # Clearly leftward unless direction-unreliable (strong toss evidence,
+        # tracker lost ball post-contact — allowed through with penalty).
+        if nrd < -500 and not c.get("direction_unreliable", False):
+            continue
+        # Light backup filter: weak toss geometry + strong immediate downward post-contact.
+        tr = float(c.get("toss_rise_px", 0.0))
+        td = int(c.get("toss_duration_frames", 0))
+        epd = float(c.get("early_post_downward_fraction", 0.0))
+        epdy = float(c.get("early_post_net_dy", 0.0))
+        if tr < 60 and td < 6 and epd > 0.70 and epdy > 45:
+            continue
+
+        filtered.append(c)
+    candidates = filtered
+
+    if not candidates:
         return []
 
     ordered = sorted(candidates, key=lambda c: float(c["contact_time_sec"]))
@@ -297,16 +345,59 @@ def select_serves(
             (post_value - p90_post) / max(p90_post - p50_post, 1e-6)
         )
 
+        # Rightward motion metrics
+        rightward_frac = float(candidate.get("rightward_fraction", 0.0))
+        net_rightward = float(candidate.get("net_rightward_displacement", 0.0))
+        rightward_bonus = _clip(rightward_frac)
+        # Net rightward displacement bonus (scaled relative to typical serve)
+        rightward_disp_bonus = _clip(net_rightward / 150.0)
+
+        # Check if direction-unreliable candidate has strong toss evidence.
+        # Only these get penalty waivers and recovery bonus.
+        has_strong_toss = False
+        if candidate.get("direction_unreliable", False):
+            uf = float(candidate.get("upward_fraction", 0.0))
+            ruf = float(candidate.get("recent_upward_fraction", 0.0))
+            cv = float(candidate.get("contact_velocity", 0.0))
+            drop_val_r = float(candidate.get("drop_after_apex", 0.0))
+            faa_r = float(candidate.get("frames_after_apex", 0))
+            has_strong_toss = (uf > 0.5 and ruf > 0.5 and cv > 1000
+                               and drop_val_r > 100 and faa_r > 20)
+
+        # Leftward penalty — strong signal of rebound / camera shake.
+        # Waived only for direction-unreliable WITH strong toss evidence
+        # (tracking lost ball; leftward nrd is artifact, not rebound).
+        if candidate.get("direction_unreliable", False) and has_strong_toss:
+            leftward_penalty = 0.0
+        else:
+            leftward_penalty = _clip((-net_rightward) / 80.0) if net_rightward < -10.0 else 0.0
+
+        # Contradictory-direction penalty: high rf but negative nrd.
+        # Not applied to direction-unreliable with strong toss evidence.
+        contradictory_penalty = 1.0 if (
+            rightward_frac >= 0.5 and net_rightward <= -10
+            and not (candidate.get("direction_unreliable", False) and has_strong_toss)
+        ) else 0.0
+
+        # Recovery bonus: compensate for ~0.30 weight lost from missing
+        # rightward metrics when tracker lost ball post-contact.
+        recovery_bonus = 0.15 if has_strong_toss else 0.0
+
         rank = (
-            0.30 * support_bonus
-            + 0.22 * recent_bonus
-            + 0.14 * after_bonus
-            + 0.12 * contact_bonus
-            + 0.10 * post_bonus
-            + 0.06 * score_bonus
+            0.25 * support_bonus
+            + 0.20 * rightward_bonus
+            + 0.10 * rightward_disp_bonus
+            + 0.18 * recent_bonus
+            + 0.12 * after_bonus
+            + 0.08 * contact_bonus
+            + 0.05 * post_bonus
+            + 0.02 * score_bonus
             - 0.70 * early_steep_penalty
             - 0.35 * apex_snap_penalty
             - 0.20 * post_outlier_penalty
+            - 0.50 * leftward_penalty
+            - 0.80 * contradictory_penalty
+            + recovery_bonus
         )
 
         enriched = dict(candidate)
@@ -349,13 +440,8 @@ def select_serves(
         if not dominated:
             suppressed.append(candidate)
 
-    for candidate in suppressed:
-        candidate_time = float(candidate["contact_time_sec"])
-        early_bonus = 0.12 * math.exp(-(((candidate_time - 13.0) / 4.5) ** 2))
-        late_penalty = 0.18 * _clip((candidate_time - 63.0) / 4.0)
-        candidate["selector_rank"] = float(
-            candidate["selector_rank"] + early_bonus - late_penalty
-        )
+    # No temporal bias — rightward motion and geometry drive ranking,
+    # not position within video timeline.
 
     # Determine how many to select
     if expected_serves is not None:
@@ -368,6 +454,10 @@ def select_serves(
         suppressed, key=lambda c: float(c["selector_rank"]), reverse=True
     ):
         candidate_time = float(candidate["contact_time_sec"])
+        # Skip candidates with negative rank — penalties outweigh bonuses.
+        # Even as gap-fillers, these are clearly non-serve events.
+        if float(candidate["selector_rank"]) < 0:
+            continue
         if all(
             abs(candidate_time - float(existing["contact_time_sec"])) >= min_gap_sec
             for existing in selected
@@ -503,8 +593,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             start_frame=args.start_frame,
         )
     else:
+        # Pass None in autonomous mode (same semantics as web adapter)
         count_inferred = args.expected_serves is None
-        pool_size = args.expected_serves if args.expected_serves is not None else 12
+        pool_size = args.expected_serves  # None when autonomous
         candidates = detect_serve_candidates(
             args.video,
             expected_serves=pool_size,

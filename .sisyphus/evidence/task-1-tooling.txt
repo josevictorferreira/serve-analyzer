@@ -1,0 +1,7 @@
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+v24.14.0
+11.9.0
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import fastapi, uvicorn, multipart
+ModuleNotFoundError: No module named 'fastapi'

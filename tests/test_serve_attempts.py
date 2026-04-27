@@ -18,6 +18,8 @@ from serve_analyzer.serve_attempts import (
     select_serves,
 )
 
+from web.backend.services.analysis_service import run_analysis
+
 
 def _make_event(contact_frame: int, score: float = 1.0, **extra):
     """Build a minimal candidate event dict for merge tests."""
@@ -48,6 +50,16 @@ def _make_candidate(
         "post_contact_mean_kmh": mean_kmh,
         "post_contact_max_mps": max_kmh / 3.6,
         "post_contact_mean_mps": mean_kmh / 3.6,
+        # Default rightward/drop fields — represent a plausible serve.
+        # Tests that need non-serve shapes override these via **extra.
+        "rightward_fraction": 0.6,
+        "net_rightward_displacement": 100.0,
+        "drop_after_apex": 200.0,
+        "support_count": 2,
+        "contact_velocity": 1000.0,
+        "recent_upward_fraction": 0.5,
+        "frames_after_apex": 30,
+        "upward_fraction": 0.5,
     }
     d.update(extra)
     return d
@@ -69,7 +81,13 @@ class TestDetectServeCandidatesValidation(unittest.TestCase):
         "serve_analyzer.serve_attempts.detect_ball_yolo",
         return_value=([], 30.0, 100, None),
     )
-    def test_expected_serves_zero_raises(self, _mock_detect):
+    @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
+    @patch("serve_analyzer.serve_attempts.compute_vertical_velocity")
+    @patch("serve_analyzer.serve_attempts.compute_frame_velocities")
+    @patch("serve_analyzer.serve_attempts.interpolate_missing_detections")
+    def test_expected_serves_zero_raises(
+        self, mock_interp, mock_vel, mock_vert_vel, mock_horiz_vel, _mock_detect
+    ):
         """expected_serves=0 validated after video I/O — still raises ValueError."""
         with self.assertRaises(ValueError):
             detect_serve_candidates("irrelevant.mov", expected_serves=0, frame_skip=1)
@@ -85,6 +103,7 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
 
     @patch("serve_analyzer.serve_attempts.analyze_serve")
     @patch("serve_analyzer.serve_attempts.detect_serve_events", return_value=[])
+    @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
     @patch("serve_analyzer.serve_attempts.compute_vertical_velocity")
     @patch("serve_analyzer.serve_attempts.compute_frame_velocities")
     @patch("serve_analyzer.serve_attempts.interpolate_missing_detections")
@@ -98,16 +117,24 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
         mock_interp,
         mock_vel,
         mock_vert_vel,
+        mock_horiz_vel,
         mock_events,
         mock_analyze,
     ):
         """When no events detected, should return empty list."""
         result = detect_serve_candidates("video.mov")
-        self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 0)
+        self.assertIsInstance(result, dict)
+        self.assertIn("candidates", result)
+        self.assertIn("positions", result)
+        self.assertIn("frame_skip", result)
+        candidates = result["candidates"]
+        self.assertIsInstance(candidates, list)
+        self.assertEqual(len(candidates), 0)
+
 
     @patch("serve_analyzer.serve_attempts.analyze_serve")
     @patch("serve_analyzer.serve_attempts.detect_serve_events")
+    @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
     @patch("serve_analyzer.serve_attempts.compute_vertical_velocity")
     @patch("serve_analyzer.serve_attempts.compute_frame_velocities")
     @patch("serve_analyzer.serve_attempts.interpolate_missing_detections")
@@ -121,6 +148,7 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
         mock_interp,
         mock_vel,
         mock_vert_vel,
+        mock_horiz_vel,
         mock_events,
         mock_analyze,
     ):
@@ -133,7 +161,12 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
         mock_events.return_value = [event]
         mock_analyze.return_value = serve_mock
 
-        candidates = detect_serve_candidates("video.mov")
+        result = detect_serve_candidates("video.mov")
+        self.assertIsInstance(result, dict)
+        self.assertIn("candidates", result)
+        self.assertIn("positions", result)
+        self.assertIn("frame_skip", result)
+        candidates = result["candidates"]
 
         self.assertEqual(len(candidates), 1)
         candidate = candidates[0]
@@ -168,6 +201,7 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
 
     @patch("serve_analyzer.serve_attempts.analyze_serve")
     @patch("serve_analyzer.serve_attempts.detect_serve_events")
+    @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
     @patch("serve_analyzer.serve_attempts.compute_vertical_velocity")
     @patch("serve_analyzer.serve_attempts.compute_frame_velocities")
     @patch("serve_analyzer.serve_attempts.interpolate_missing_detections")
@@ -181,6 +215,7 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
         mock_interp,
         mock_vel,
         mock_vert_vel,
+        mock_horiz_vel,
         mock_events,
         mock_analyze,
     ):
@@ -195,7 +230,8 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
         mock_events.return_value = [event]
         mock_analyze.return_value = serve_mock
 
-        candidates = detect_serve_candidates("video.mov")
+        result = detect_serve_candidates("video.mov")
+        candidates = result["candidates"]
 
         self.assertAlmostEqual(candidates[0]["contact_time_sec"], frame / fps)
 
@@ -328,21 +364,29 @@ class TestSelectServes(unittest.TestCase):
         when later candidates form a more plausible serve sequence.
 
         The early candidate has the highest detection score but very low
-        post-contact velocity (40 km/h), signalling a false positive.
-        The three later candidates carry realistic serve velocities.
+        post-contact velocity (40 km/h) and no rightward motion, signalling
+        a false positive. The three later candidates carry realistic serve
+        velocities with clear rightward motion.
         """
         candidates = [
             _make_candidate(
-                contact_time_sec=0.3, score=0.98, max_kmh=40.0, mean_kmh=35.0
+                contact_time_sec=0.3, score=0.98, max_kmh=40.0, mean_kmh=35.0,
+                rightward_fraction=0.1, net_rightward_displacement=-5.0,
             ),
             _make_candidate(
-                contact_time_sec=12.0, score=0.82, max_kmh=175.0, mean_kmh=165.0
+                contact_time_sec=12.0, score=0.82, max_kmh=175.0, mean_kmh=165.0,
+                rightward_fraction=0.8, net_rightward_displacement=100.0,
+                support_count=3, recent_upward_fraction=0.55, frames_after_apex=30,
             ),
             _make_candidate(
-                contact_time_sec=28.0, score=0.78, max_kmh=168.0, mean_kmh=158.0
+                contact_time_sec=28.0, score=0.78, max_kmh=168.0, mean_kmh=158.0,
+                rightward_fraction=0.75, net_rightward_displacement=90.0,
+                support_count=3, recent_upward_fraction=0.53, frames_after_apex=28,
             ),
             _make_candidate(
-                contact_time_sec=44.0, score=0.72, max_kmh=162.0, mean_kmh=152.0
+                contact_time_sec=44.0, score=0.72, max_kmh=162.0, mean_kmh=152.0,
+                rightward_fraction=0.7, net_rightward_displacement=85.0,
+                support_count=2, recent_upward_fraction=0.50, frames_after_apex=26,
             ),
         ]
         result = select_serves(candidates, expected_serves=3)
@@ -353,19 +397,27 @@ class TestSelectServes(unittest.TestCase):
         """Multiple early high-score FPs should not crowd out real serves."""
         candidates = [
             _make_candidate(
-                contact_time_sec=0.4, score=0.96, max_kmh=35.0, mean_kmh=30.0
+                contact_time_sec=0.4, score=0.96, max_kmh=35.0, mean_kmh=30.0,
+                rightward_fraction=0.1, net_rightward_displacement=-5.0,
             ),
             _make_candidate(
-                contact_time_sec=1.2, score=0.94, max_kmh=45.0, mean_kmh=38.0
+                contact_time_sec=1.2, score=0.94, max_kmh=45.0, mean_kmh=38.0,
+                rightward_fraction=0.1, net_rightward_displacement=-10.0,
             ),
             _make_candidate(
-                contact_time_sec=10.0, score=0.80, max_kmh=172.0, mean_kmh=162.0
+                contact_time_sec=10.0, score=0.80, max_kmh=172.0, mean_kmh=162.0,
+                rightward_fraction=0.8, net_rightward_displacement=100.0,
+                support_count=3, recent_upward_fraction=0.55, frames_after_apex=30,
             ),
             _make_candidate(
-                contact_time_sec=25.0, score=0.75, max_kmh=165.0, mean_kmh=155.0
+                contact_time_sec=25.0, score=0.75, max_kmh=165.0, mean_kmh=155.0,
+                rightward_fraction=0.75, net_rightward_displacement=90.0,
+                support_count=2, recent_upward_fraction=0.52, frames_after_apex=28,
             ),
             _make_candidate(
-                contact_time_sec=40.0, score=0.70, max_kmh=158.0, mean_kmh=148.0
+                contact_time_sec=40.0, score=0.70, max_kmh=158.0, mean_kmh=148.0,
+                rightward_fraction=0.7, net_rightward_displacement=85.0,
+                support_count=2, recent_upward_fraction=0.50, frames_after_apex=25,
             ),
         ]
         result = select_serves(candidates, expected_serves=3)
@@ -463,6 +515,7 @@ class TestDetectServeCandidatesDefaultCount(unittest.TestCase):
 
     @patch("serve_analyzer.serve_attempts.analyze_serve")
     @patch("serve_analyzer.serve_attempts.detect_serve_events", return_value=[])
+    @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
     @patch("serve_analyzer.serve_attempts.compute_vertical_velocity")
     @patch("serve_analyzer.serve_attempts.compute_frame_velocities")
     @patch("serve_analyzer.serve_attempts.interpolate_missing_detections")
@@ -476,15 +529,22 @@ class TestDetectServeCandidatesDefaultCount(unittest.TestCase):
         mock_interp,
         mock_vel,
         mock_vert_vel,
+        mock_horiz_vel,
         mock_events,
         mock_analyze,
     ):
-        """Omitting expected_serves should not raise; default of 8 used internally."""
+        """Omitting expected_serves should not raise; default of 12 used internally."""
         result = detect_serve_candidates("video.mov")
-        self.assertIsInstance(result, list)
+        self.assertIsInstance(result, dict)
+        self.assertIn("candidates", result)
+        self.assertIn("positions", result)
+        self.assertIn("frame_skip", result)
+        candidates = result["candidates"]
+        self.assertIsInstance(candidates, list)
 
     @patch("serve_analyzer.serve_attempts.analyze_serve")
     @patch("serve_analyzer.serve_attempts.detect_serve_events")
+    @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
     @patch("serve_analyzer.serve_attempts.compute_vertical_velocity")
     @patch("serve_analyzer.serve_attempts.compute_frame_velocities")
     @patch("serve_analyzer.serve_attempts.interpolate_missing_detections")
@@ -498,6 +558,7 @@ class TestDetectServeCandidatesDefaultCount(unittest.TestCase):
         mock_interp,
         mock_vel,
         mock_vert_vel,
+        mock_horiz_vel,
         mock_events,
         mock_analyze,
     ):
@@ -505,11 +566,12 @@ class TestDetectServeCandidatesDefaultCount(unittest.TestCase):
         detect_serve_candidates("video.mov", expected_serves=None)
         for call_args in mock_events.call_args_list:
             profile_expected = call_args[1]["expected_serves"]
-            # default 8 -> max(8*3, 8+8) = 24 for first two profiles
+            # default 12 -> max(12*3, 12+8) = 36 for first two profiles
             self.assertGreaterEqual(profile_expected, 16)
 
     @patch("serve_analyzer.serve_attempts.analyze_serve")
     @patch("serve_analyzer.serve_attempts.detect_serve_events")
+    @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
     @patch("serve_analyzer.serve_attempts.compute_vertical_velocity")
     @patch("serve_analyzer.serve_attempts.compute_frame_velocities")
     @patch("serve_analyzer.serve_attempts.interpolate_missing_detections")
@@ -523,6 +585,7 @@ class TestDetectServeCandidatesDefaultCount(unittest.TestCase):
         mock_interp,
         mock_vel,
         mock_vert_vel,
+        mock_horiz_vel,
         mock_events,
         mock_analyze,
     ):
@@ -585,7 +648,9 @@ class TestSelectServesAutonomousCount(unittest.TestCase):
         candidates = [
             _make_candidate(contact_time_sec=10.0, score=0.9, max_kmh=170.0),
             _make_candidate(
-                contact_time_sec=30.0, score=0.1, max_kmh=5.0, mean_kmh=3.0
+                contact_time_sec=30.0, score=0.1, max_kmh=5.0, mean_kmh=3.0,
+                rightward_fraction=0.1, net_rightward_displacement=-2.0,
+                drop_after_apex=2.0,
             ),
             _make_candidate(contact_time_sec=50.0, score=0.8, max_kmh=165.0),
         ]
@@ -839,7 +904,9 @@ class TestSelectServesAutonomous(unittest.TestCase):
             _make_candidate(contact_time_sec=10.0, score=0.9, max_kmh=175.0),
             _make_candidate(contact_time_sec=25.0, score=0.85, max_kmh=170.0),
             _make_candidate(
-                contact_time_sec=1.0, score=0.5, max_kmh=30.0, mean_kmh=25.0
+                contact_time_sec=1.0, score=0.5, max_kmh=30.0, mean_kmh=25.0,
+                rightward_fraction=0.15, net_rightward_displacement=-3.0,
+                drop_after_apex=3.0,
             ),
         ]
         result = select_serves(candidates, expected_serves=None)
@@ -859,6 +926,530 @@ class TestSelectServesAutonomous(unittest.TestCase):
         ]
         result = select_serves(candidates, expected_serves=2)
         self.assertEqual(len(result), 2)
+
+
+# ---------------------------------------------------------------------------
+# Rightward motion & robust speed regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestRightwardMotionValidation(unittest.TestCase):
+    """Post-contact rightward motion validation prevents false serves."""
+
+    def test_rightward_candidate_ranks_above_nonrightward(self):
+        """A candidate with clear rightward motion ranks higher than one without."""
+        rightward = _make_candidate(
+            contact_time_sec=15.0,
+            score=0.85,
+            max_kmh=170.0,
+            rightward_fraction=0.85,
+            net_rightward_displacement=120.0,
+            support_count=3,
+            recent_upward_fraction=0.55,
+            frames_after_apex=30,
+        )
+        non_rightward = _make_candidate(
+            contact_time_sec=12.0,
+            score=0.95,
+            max_kmh=200.0,
+            rightward_fraction=0.1,
+            net_rightward_displacement=-50.0,
+            support_count=3,
+            recent_upward_fraction=0.55,
+            frames_after_apex=30,
+        )
+        result = select_serves([rightward, non_rightward], expected_serves=1)
+        # Rightward candidate should win despite lower raw score
+        self.assertEqual(result[0]["contact_time_sec"], 15.0)
+
+    def test_toss_only_upward_rejected(self):
+        """A toss-only candidate (no rightward, upward-only) ranks below true serves."""
+        toss_only = _make_candidate(
+            contact_time_sec=10.0,
+            score=0.9,
+            max_kmh=80.0,
+            rightward_fraction=0.05,
+            net_rightward_displacement=5.0,
+            support_count=1,
+            recent_upward_fraction=0.50,
+            frames_after_apex=10,
+        )
+        true_serve = _make_candidate(
+            contact_time_sec=25.0,
+            score=0.80,
+            max_kmh=170.0,
+            rightward_fraction=0.80,
+            net_rightward_displacement=100.0,
+            support_count=3,
+            recent_upward_fraction=0.55,
+            frames_after_apex=30,
+        )
+        result = select_serves([toss_only, true_serve], expected_serves=1)
+        self.assertEqual(result[0]["contact_time_sec"], 25.0)
+
+    def test_rebound_leftward_penalized(self):
+        """A rebound (leftward) candidate is penalized below rightward serves."""
+        rebound = _make_candidate(
+            contact_time_sec=20.0,
+            score=0.88,
+            max_kmh=190.0,
+            rightward_fraction=0.1,
+            net_rightward_displacement=-80.0,
+            support_count=2,
+            recent_upward_fraction=0.50,
+            frames_after_apex=25,
+        )
+        true_serve = _make_candidate(
+            contact_time_sec=35.0,
+            score=0.80,
+            max_kmh=170.0,
+            rightward_fraction=0.75,
+            net_rightward_displacement=90.0,
+            support_count=3,
+            recent_upward_fraction=0.55,
+            frames_after_apex=30,
+        )
+        result = select_serves([rebound, true_serve], expected_serves=1)
+        self.assertEqual(result[0]["contact_time_sec"], 35.0)
+
+    def test_no_temporal_bias_in_ranking(self):
+        """Selector does not prefer early candidates over late ones by time alone."""
+        early = _make_candidate(
+            contact_time_sec=5.0,
+            score=0.85,
+            max_kmh=170.0,
+            rightward_fraction=0.7,
+            net_rightward_displacement=80.0,
+            support_count=3,
+            recent_upward_fraction=0.55,
+            frames_after_apex=30,
+        )
+        late = _make_candidate(
+            contact_time_sec=70.0,
+            score=0.85,
+            max_kmh=170.0,
+            rightward_fraction=0.7,
+            net_rightward_displacement=80.0,
+            support_count=3,
+            recent_upward_fraction=0.55,
+            frames_after_apex=30,
+        )
+        # Same geometric quality — ranks should be equal (no early bonus / late penalty)
+        result = select_serves([early, late], expected_serves=2)
+        self.assertEqual(len(result), 2)
+        self.assertAlmostEqual(
+            result[0]["selector_rank"], result[1]["selector_rank"], places=3
+        )
+
+
+class TestRobustSpeedMetric(unittest.TestCase):
+    """Robust speed metric is not blown up by one-frame outliers."""
+
+    def test_robust_speed_less_than_spike_max(self):
+        """compute_horizontal_velocity returns array that can be used for robust speed."""
+        from serve_analyzer.multi_serve import compute_horizontal_velocity
+        import numpy as np
+
+        # Simulate post-contact positions: mostly rightward at ~10px/frame,
+        # but one frame jumps 100px rightward (outlier spike)
+        positions = [(float(i * 10), 100.0) for i in range(10)]
+        # Inject one outlier frame
+        positions[5] = (positions[4][0] + 100.0, 100.0)
+        positions[6] = (positions[5][0] + 10.0, 100.0)
+
+        horiz = compute_horizontal_velocity(positions, smooth_sigma=0.0)
+        # Most frames should have dx ~10, one frame has dx ~100
+        self.assertGreater(np.max(horiz), 50.0)  # spike exists
+        # p90 of rightward frames is more robust than max
+        rightward = horiz[horiz > 0.5]
+        if len(rightward) >= 2:
+            p90 = float(np.percentile(rightward, 90))
+            self.assertLess(p90, float(np.max(rightward)))
+
+    def test_rightward_only_p90_not_inflated_by_leftward(self):
+        """Leftward frames are excluded from robust speed calculation."""
+        import numpy as np
+
+        # Mix of rightward and leftward frames
+        speeds = np.array([10.0, 12.0, -5.0, 11.0, -3.0, 13.0, 10.0, 14.0, -8.0, 12.0])
+        rightward = speeds[speeds > 0.5]
+        p90 = float(np.percentile(rightward, 90))
+        # p90 should be close to the typical rightward speed, not inflated
+        self.assertLess(p90, 14.0)  # well below any potential spike
+        self.assertGreater(p90, 10.0)  # but still represents real speed
+
+
+class TestAdapterAutonomousMode(unittest.TestCase):
+    """analysis_service passes expected_serves=None through to detector."""
+
+    @patch("web.backend.services.analysis_service.get_video_info")
+    @patch("web.backend.services.analysis_service.select_serves")
+    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    def test_autonomous_mode_passes_none_to_detector(self, mock_detect, mock_select, mock_info):
+        """When expected_serves=None, detector receives None (not 12)."""
+        mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
+        mock_detect.return_value = {"candidates": [], "positions": [], "frame_skip": 1}
+        mock_select.return_value = []
+
+        run_analysis("/tmp/video.mov", expected_serves=None)
+
+        _, kwargs = mock_detect.call_args
+        self.assertIsNone(kwargs["expected_serves"])
+
+    @patch("web.backend.services.analysis_service.get_video_info")
+    @patch("web.backend.services.analysis_service.select_serves")
+    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    def test_explicit_mode_passes_int_to_detector(self, mock_detect, mock_select, mock_info):
+        """When expected_serves=5, detector receives 5."""
+        mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
+        mock_detect.return_value = {"candidates": [], "positions": [], "frame_skip": 1}
+        mock_select.return_value = []
+
+        run_analysis("/tmp/video.mov", expected_serves=5)
+
+        _, kwargs = mock_detect.call_args
+        self.assertEqual(kwargs["expected_serves"], 5)
+
+
+
+class TestDirectionUnreliableRecovery(unittest.TestCase):
+    """Direction-unreliable candidates with strong toss evidence can compete."""
+
+    def test_recovered_candidate_beats_weak_ordinary(self):
+        """A direction_unreliable candidate with strong toss evidence ranks above
+        a weak ordinary candidate (low rightward, low support)."""
+        recovered = _make_candidate(
+            contact_time_sec=10.0,
+            score=0.80,
+            max_kmh=170.0,
+            rightward_fraction=0.17,
+            net_rightward_displacement=-2000.0,
+            support_count=3,
+            recent_upward_fraction=0.65,
+            frames_after_apex=107,
+            contact_velocity=1600.0,
+            upward_fraction=0.56,
+            drop_after_apex=538.0,
+            direction_unreliable=True,
+        )
+        weak_ordinary = _make_candidate(
+            contact_time_sec=52.0,
+            score=0.50,
+            max_kmh=10.0,
+            rightward_fraction=0.48,
+            net_rightward_displacement=1.0,
+            support_count=1,
+            recent_upward_fraction=0.37,
+            frames_after_apex=128,
+            contact_velocity=900.0,
+            upward_fraction=0.49,
+            drop_after_apex=582.0,
+        )
+        result = select_serves([recovered, weak_ordinary], expected_serves=2)
+        self.assertEqual(len(result), 2)
+        # recovered should have higher rank than weak_ordinary
+        ranks = {c["contact_time_sec"]: c["selector_rank"] for c in result}
+        self.assertGreater(ranks[10.0], ranks[52.0])
+
+    def test_junk_still_excluded(self):
+        """Junk candidates (no-motion, near-zero drop+nrd) stay out."""
+        junk = _make_candidate(
+            contact_time_sec=14.0,
+            score=0.80,
+            max_kmh=40.0,
+            rightward_fraction=0.72,
+            net_rightward_displacement=-1.5,
+            drop_after_apex=0.3,
+        )
+        good = _make_candidate(
+            contact_time_sec=42.0,
+            score=0.90,
+            max_kmh=175.0,
+        )
+        result = select_serves([junk, good], expected_serves=2)
+        # junk should be filtered by no-motion gate
+        self.assertNotIn(14.0, [c["contact_time_sec"] for c in result])
+
+    def test_recovery_bonus_requires_strong_evidence(self):
+        """A direction_unreliable candidate WITHOUT strong toss evidence
+        does NOT get recovery bonus and ranks low."""
+        weak_recovered = _make_candidate(
+            contact_time_sec=13.0,
+            score=0.80,
+            max_kmh=170.0,
+            rightward_fraction=0.52,
+            net_rightward_displacement=-1500.0,
+            support_count=2,
+            recent_upward_fraction=0.54,
+            frames_after_apex=88,
+            contact_velocity=2000.0,
+            upward_fraction=0.31,  # weak toss evidence
+            drop_after_apex=4.0,  # small drop
+            direction_unreliable=True,
+        )
+        clean_rightward = _make_candidate(
+            contact_time_sec=42.0,
+            score=0.85,
+            max_kmh=170.0,
+        )
+        result = select_serves([weak_recovered, clean_rightward], expected_serves=2)
+        # weak recovered should be filtered (negative rank from penalties)
+        # only clean_rightward survives
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["contact_time_sec"], 42.0)
+
+# ---------------------------------------------------------------------------
+# Contact-frame refinement (_refine_contact_frame)
+# ---------------------------------------------------------------------------
+
+
+class TestContactFrameRefinement(unittest.TestCase):
+    """_refine_contact_frame shifts toward sharpest horizontal acceleration."""
+
+    def _make_horiz_velocities(self, n, accel_frame, pre_val=1.0, post_val=20.0):
+        """Build a horiz_velocities array with a sharp acceleration at accel_frame."""
+        import numpy as np
+        hv = np.full(n, pre_val, dtype=float)
+        hv[accel_frame:] = post_val
+        # Smooth slightly to mimic real data
+        from scipy.ndimage import gaussian_filter1d
+        hv = gaussian_filter1d(hv, sigma=1.0)
+        return hv
+
+    def test_refines_to_strongest_acceleration(self):
+        """Refinement shifts contact to frame with strongest rightward acceleration."""
+        from serve_analyzer.multi_serve import _refine_contact_frame
+
+        n = 60
+        accel_frame = 30  # true contact: sharp rightward acceleration here
+        peak_frame = 33    # smoothed velocity peak is a few frames late
+        hv = self._make_horiz_velocities(n, accel_frame, pre_val=1.0, post_val=25.0)
+        positions = [(float(i), 100.0) for i in range(n)]
+
+        refined = _refine_contact_frame(peak_frame, positions, hv, window=5)
+        # Should shift toward the acceleration transition (near accel_frame)
+        self.assertLessEqual(abs(refined - accel_frame), 3)
+        self.assertNotEqual(refined, peak_frame)  # must have shifted
+
+    def test_no_shift_when_peak_is_best(self):
+        """If peak_frame already has the strongest acceleration, keep it."""
+        from serve_analyzer.multi_serve import _refine_contact_frame
+        import numpy as np
+
+        n = 60
+        # Uniform horiz velocity — no acceleration anywhere
+        hv = np.full(n, 5.0)
+        positions = [(float(i), 100.0) for i in range(n)]
+
+        refined = _refine_contact_frame(30, positions, hv, window=5)
+        self.assertEqual(refined, 30)  # no shift
+
+    def test_no_shift_beyond_window(self):
+        """Refinement never shifts more than ±window frames."""
+        from serve_analyzer.multi_serve import _refine_contact_frame
+        import numpy as np
+
+        n = 100
+        # Acceleration far from peak
+        hv = np.zeros(n)
+        hv[10] = 0.1  # tiny accel far away
+        hv[20] = 0.1  # tiny accel
+        hv[50] = 100.0  # huge accel but 20 frames from peak=30 with window=5
+        positions = [(float(i), 100.0) for i in range(n)]
+
+        refined = _refine_contact_frame(30, positions, hv, window=5)
+        self.assertEqual(refined, 30)  # too far, no shift
+
+    def test_conservative_threshold_rejects_weak_evidence(self):
+        """Refinement rejects if candidate acceleration is <1.5x peak acceleration."""
+        from serve_analyzer.multi_serve import _refine_contact_frame
+        import numpy as np
+
+        n = 60
+        # Build horiz_velocities where peak_frame (30) has strong accel (=20)
+        # and a nearby frame (28) has slightly higher accel (=21).
+        # 21 is NOT > 20*1.5=30, so refinement must be rejected.
+        hv = np.zeros(n)
+        hv[28] = 21.0   # accel from 27→28 = 21 (strong, but not 1.5x of peak)
+        hv[30] = 0.0    # setup so accel from 30→31 = 20
+        hv[31] = 20.0   # accel from 30→31 = 20 (peak's own accel)
+        positions = [(float(i), 100.0) for i in range(n)]
+
+        refined = _refine_contact_frame(30, positions, hv, window=5)
+        self.assertEqual(refined, 30)  # 21 is not 1.5x of 20
+
+
+# ---------------------------------------------------------------------------
+# Post-contact speed excludes contact frame (analyze_serve)
+# ---------------------------------------------------------------------------
+
+
+class TestPostContactSpeedExcludesContactFrame(unittest.TestCase):
+    """analyze_serve post-contact speed must not include the contact-frame jump."""
+
+    def test_contact_frame_spike_excluded(self):
+        """A huge contact-frame displacement must not inflate post-contact speed."""
+        from serve_analyzer.multi_serve import analyze_serve
+
+        fps = 30.0
+        scale = 0.001  # 1mm/px
+        # 45 frames total: toss frames 0-19, contact at 20, post 21-40
+        positions = [(100.0, 200.0 - i * 2) for i in range(20)]  # toss: upward
+        # Contact frame: huge jump rightward (the racket hit)
+        positions.append((500.0, 180.0))  # frame 20 — contact
+        # Post-contact: steady rightward motion at 10px/frame
+        for i in range(20):
+            positions.append((510.0 + i * 10, 180.0 + i * 0.5))
+
+        event = {
+            "toss_start_frame": 0,
+            "contact_frame": 20,
+            "post_contact_end_frame": 39,
+            "apex_frame": 15,
+            "apex_position": (100.0, 170.0),
+        }
+
+        serve = analyze_serve(0, event, positions, fps, scale)
+
+        # Post-contact positions should start from frame 21 (contact+1)
+        # The 400px contact-frame jump must NOT be in post_contact_positions
+        for p in serve.post_contact_positions:
+            # All post-contact x should be >= 500 (starting from frame 21)
+            self.assertGreaterEqual(p[0], 500.0)
+
+        # Post-contact max speed should be based on ~10px/frame motion,
+        # not the 400px contact jump
+        # 10 px/frame * 0.001 m/px * 30 fps * 3.6 = 1.08 km/h (low scale)
+        # The key test: it should NOT be 400px/frame * scale * fps * 3.6 ≈ 43.2 km/h
+        self.assertLess(serve.post_contact_max_velocity, 50.0)
+
+    def test_post_contact_positions_length(self):
+        """post_contact_positions has len = post_end - contact."""
+        from serve_analyzer.multi_serve import analyze_serve
+
+        fps = 30.0
+        positions = [(float(i), 100.0) for i in range(50)]
+        event = {
+            "toss_start_frame": 0,
+            "contact_frame": 10,
+            "post_contact_end_frame": 20,
+            "apex_frame": 5,
+            "apex_position": (5.0, 100.0),
+        }
+
+        serve = analyze_serve(0, event, positions, fps, 0.001)
+        # post_contact_positions = positions[11:22] = 11 elements
+        self.assertEqual(len(serve.post_contact_positions), 10)
+
+    def test_toss_still_includes_contact_frame(self):
+        """Toss phase still includes the contact frame as its endpoint."""
+        from serve_analyzer.multi_serve import analyze_serve
+
+        fps = 30.0
+        positions = [(float(i), 100.0) for i in range(50)]
+        event = {
+            "toss_start_frame": 5,
+            "contact_frame": 10,
+            "post_contact_end_frame": 20,
+            "apex_frame": 8,
+            "apex_position": (8.0, 100.0),
+        }
+
+        serve = analyze_serve(0, event, positions, fps, 0.001)
+        # toss_positions = positions[5:11] = 6 elements (includes contact frame 10)
+        self.assertEqual(len(serve.toss_positions), 6)
+        # Last toss position should be the contact frame position
+        self.assertEqual(serve.toss_positions[-1], positions[10])
+
+
+# ---------------------------------------------------------------------------
+# Toss geometry and floor-drive false-positive rejection
+# ---------------------------------------------------------------------------
+
+
+class TestTossGeometryAndFloorDriveRejection(unittest.TestCase):
+    """New metadata fields filter prep motions and floor-drive events."""
+
+    def test_prep_pocket_false_positive_rejected(self):
+        """Weak toss rise and short toss duration should not survive selection."""
+        prep_motion = _make_candidate(
+            contact_time_sec=5.0,
+            score=0.7,
+            max_kmh=50.0,
+            mean_kmh=40.0,
+            rightward_fraction=0.3,
+            net_rightward_displacement=20.0,
+            drop_after_apex=30.0,
+            toss_rise_px=30.0,
+            toss_duration_frames=4,
+            early_post_downward_fraction=0.75,
+            early_post_net_dy=50.0,
+        )
+        true_serve = _make_candidate(
+            contact_time_sec=20.0,
+            score=0.85,
+            max_kmh=170.0,
+            rightward_fraction=0.75,
+            net_rightward_displacement=100.0,
+            drop_after_apex=200.0,
+            toss_rise_px=120.0,
+            toss_duration_frames=12,
+            early_post_downward_fraction=0.3,
+            early_post_net_dy=20.0,
+        )
+        result = select_serves([prep_motion, true_serve], expected_serves=2)
+        times = [c["contact_time_sec"] for c in result]
+        self.assertNotIn(5.0, times)
+        self.assertIn(20.0, times)
+    def test_floor_hit_false_positive_rejected(self):
+        """Rightward motion plus strong immediate downward post-contact is rejected."""
+        floor_hit = _make_candidate(
+            contact_time_sec=8.0,
+            score=0.75,
+            max_kmh=90.0,
+            mean_kmh=80.0,
+            rightward_fraction=0.55,
+            net_rightward_displacement=60.0,
+            drop_after_apex=50.0,
+            toss_rise_px=40.0,
+            toss_duration_frames=5,
+            early_post_downward_fraction=0.85,
+            early_post_net_dy=60.0,
+        )
+        true_serve = _make_candidate(
+            contact_time_sec=25.0,
+            score=0.82,
+            max_kmh=168.0,
+            rightward_fraction=0.72,
+            net_rightward_displacement=95.0,
+            drop_after_apex=180.0,
+            toss_rise_px=110.0,
+            toss_duration_frames=14,
+            early_post_downward_fraction=0.35,
+            early_post_net_dy=25.0,
+        )
+        result = select_serves([floor_hit, true_serve], expected_serves=2)
+        times = [c["contact_time_sec"] for c in result]
+        self.assertNotIn(8.0, times)
+        self.assertIn(25.0, times)
+
+    def test_real_serve_with_moderate_descent_not_over_pruned(self):
+        """Candidate with strong toss geometry and moderate post-contact descent survives."""
+        serve = _make_candidate(
+            contact_time_sec=15.0,
+            score=0.80,
+            max_kmh=165.0,
+            rightward_fraction=0.70,
+            net_rightward_displacement=90.0,
+            drop_after_apex=150.0,
+            toss_rise_px=100.0,
+            toss_duration_frames=10,
+            early_post_downward_fraction=0.55,
+            early_post_net_dy=35.0,
+        )
+        result = select_serves([serve], expected_serves=1)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["contact_time_sec"], 15.0)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,9 @@
               scikit-image
               ipykernel
               ipympl
+              fastapi
+              uvicorn
+              python-multipart
             ]
           );
         in
@@ -32,6 +35,7 @@
           buildInputs = [
             pythonEnv
             pkgs.ffmpeg
+            pkgs.nodejs
             pkgs.zlib
             pkgs.stdenv.cc.cc.lib
           ];

@@ -327,11 +327,92 @@ def compute_vertical_velocity(
     return dy
 
 
+def compute_horizontal_velocity(
+    positions: List[Tuple[float, float]], smooth_sigma: float = 2.0
+) -> np.ndarray:
+    """Compute horizontal velocity (positive = rightward in image coords).
+
+    Returns:
+        Array of horizontal velocities (length = len(positions))
+    """
+    positions = np.array(positions)
+    n = len(positions)
+
+    if n < 2:
+        return np.zeros(n)
+
+    # Horizontal displacement (x increases rightward in image)
+    dx = np.diff(positions[:, 0])
+
+    # Pad
+    dx = np.concatenate([[dx[0]], dx])
+
+    # Smooth
+    if smooth_sigma > 0:
+        dx = gaussian_filter1d(dx, sigma=smooth_sigma)
+
+    return dx
+
+
+def _refine_contact_frame(
+    peak_frame: int,
+    positions: List[Tuple[float, float]],
+    horiz_velocities: np.ndarray,
+    window: int = 5,
+) -> int:
+    """Refine contact frame using horizontal acceleration transition.
+
+    Searches ±window frames around peak_frame for the sharpest rightward
+    acceleration. Returns the original peak_frame if no clear transition found.
+
+    The contact point is identified by the frame with the largest positive
+    horizontal acceleration — the moment the ball transitions from toss
+    trajectory to post-contact rightward motion.
+    """
+    n = len(positions)
+    search_start = max(0, peak_frame - window)
+    search_end = min(n - 1, peak_frame + window)
+
+    if search_end - search_start < 2:
+        return peak_frame
+
+    # Compute horizontal acceleration in the search window
+    region = horiz_velocities[search_start : search_end + 1]
+    accel = np.diff(region)
+
+    if len(accel) == 0:
+        return peak_frame
+
+    # Find frame with maximum positive horizontal acceleration
+    max_accel_idx = int(np.argmax(accel))
+    max_accel_val = float(accel[max_accel_idx])
+
+    # Candidate frame: where the acceleration begins
+    candidate_frame = search_start + max_accel_idx
+
+    # Accept only if acceleration is clearly positive and within window
+    if max_accel_val <= 0 or abs(candidate_frame - peak_frame) > window:
+        return peak_frame
+
+    # Compare to acceleration at the original peak position
+    peak_accel_idx = peak_frame - search_start
+    if 0 <= peak_accel_idx < len(accel):
+        peak_accel = float(accel[peak_accel_idx])
+    else:
+        peak_accel = 0.0
+
+    # Accept refinement if candidate shows meaningfully stronger acceleration
+    if max_accel_val > peak_accel * 1.5:
+        return candidate_frame
+
+    return peak_frame
+
 def detect_serve_events(
     positions: List[Tuple[float, float]],
     velocities: np.ndarray,
     vert_velocities: np.ndarray,
-    fps: float,
+    horiz_velocities: Optional[np.ndarray] = None,
+    fps: float = 30.0,
     expected_serves: int = 8,
     min_serve_gap_sec: float = 3.0,
     velocity_spike_percentile: float = 90,
@@ -354,6 +435,10 @@ def detect_serve_events(
     min_gap_frames = int(min_serve_gap_sec * fps)
     toss_lookback = int(toss_lookback_sec * fps)
     post_duration = int(post_contact_duration_sec * fps)
+
+    # Ensure horiz_velocities available for contact refinement
+    if horiz_velocities is None:
+        horiz_velocities = compute_horizontal_velocity(positions)
 
     # Find velocity spikes (potential contact points)
     velocity_threshold = np.percentile(velocities, velocity_spike_percentile)
@@ -423,13 +508,49 @@ def detect_serve_events(
                     toss_start = i
                     break
 
-        # Post-contact phase
-        # Post-contact phase
+        toss_rise_px = max(0.0, positions[toss_start][1] - apex_position[1])
+        toss_duration_frames = max(0, apex_frame - toss_start)
+
+        # Minimum toss geometry gate: reject obvious prep motions with no real toss.
+        # Allow through if existing toss evidence is already extremely strong.
+        strong_toss_evidence = (
+            upward_fraction > 0.65
+            and recent_upward_fraction > 0.65
+            and drop_after_apex > 140
+        )
+        min_toss_duration = max(6, int(0.12 * fps))
+        if toss_rise_px < 60 or toss_duration_frames < min_toss_duration:
+            if not strong_toss_evidence:
+                continue
+
+        # Refine contact frame: find sharpest rightward acceleration
+        # near the velocity-magnitude peak for more accurate contact timing.
+        refined_contact = _refine_contact_frame(
+            peak_frame, positions, horiz_velocities, window=5,
+        )
+
+        # Post-contact phase (based on original peak for scoring/gating stability)
         post_end = min(n - 1, peak_frame + post_duration)
+
+        # Early post-contact downward-shape metrics
+        early_post_vert = vert_velocities[
+            peak_frame + 1 : min(post_end + 1, peak_frame + 9)
+        ]
+        early_post_downward_fraction = (
+            float(np.mean(early_post_vert > 1.0)) if len(early_post_vert) > 0 else 0.0
+        )
+        early_post_positions = positions[
+            peak_frame + 1 : min(post_end + 1, peak_frame + 9)
+        ]
+        if len(early_post_positions) >= 2:
+            early_post_net_dy = early_post_positions[-1][1] - early_post_positions[0][1]
+        else:
+            early_post_net_dy = 0.0
 
         serve_events.append(
             {
-                "contact_frame": peak_frame,
+                "contact_frame": refined_contact,
+                "_peak_frame": peak_frame,
                 "toss_start_frame": toss_start,
                 "apex_frame": apex_frame,
                 "apex_position": apex_position,
@@ -438,12 +559,111 @@ def detect_serve_events(
                 "upward_fraction": upward_fraction,
                 "recent_upward_fraction": recent_upward_fraction,
                 "drop_after_apex": drop_after_apex,
+                "toss_rise_px": toss_rise_px,
+                "toss_duration_frames": toss_duration_frames,
+                "early_post_downward_fraction": early_post_downward_fraction,
+                "early_post_net_dy": early_post_net_dy,
             }
         )
 
+    # --- Hard-gate rightward validation & scoring ---
+    # A true serve MUST show clear left-to-right ball motion after contact.
+    # Toss-only (upward), rebound (leftward), and camera-shake events are
+    # rejected before scoring so they never enter the candidate pool.
+
+    # End-of-video margin: reject events in last 5% of video
+    eof_margin = int(n * 0.05)
+
+    gated_events: List[Dict[str, Any]] = []
+    for event in serve_events:
+        scoring_frame = event["_peak_frame"]
+        post_end = event["post_contact_end_frame"]
+
+        # --- End-of-video rejection ---
+        if scoring_frame > n - eof_margin:
+            continue
+
+        # Compute rightward metrics (using original peak for stability)
+        early_post_end = scoring_frame + max(1, (post_end - scoring_frame) // 2)
+        post_horiz = horiz_velocities[scoring_frame + 1 : early_post_end + 1]
+
+        post_positions = positions[scoring_frame + 1 : post_end + 1]
+        if len(post_positions) >= 2:
+            net_dx = post_positions[-1][0] - post_positions[0][0]
+        else:
+            net_dx = 0.0
+
+        if len(post_horiz) > 0:
+            rightward_fraction = float(np.mean(post_horiz > 0.5))
+        else:
+            rightward_fraction = 0.0
+
+        # --- Serve-shape validity gates ---
+        # These reject events with implausible geometry before rightward/scoring.
+        # Based on empirical analysis of real vs false candidates on video.mov:
+        #   Real serves: drop 0-600, faa any, cv 800-2400
+        #   Junk: drop 1000+, or cv > 3000 (tracking wrong object)
+        faa = int(scoring_frame) - int(event["apex_frame"])
+        drop = float(event.get("drop_after_apex", 0.0))
+        cv = float(event.get("contact_velocity", 0.0))
+
+        # Giant drop means tracker followed player/background, not ball.
+        # Real serves: drop 0-600; junk: drop 1000+.
+        if drop > 900.0:
+            continue
+
+        # Extremely high contact velocity means tracking artifact.
+        if cv > 3000.0:
+            continue
+
+        # NOTE: contradictory direction (rf≥0.5 but nrd<0) is NOT hard-rejected
+        # here — it's handled as a score penalty and selector ranking signal
+        # instead, to avoid over-pruning borderline tracking-noise cases.
+
+
+        # Direction-unreliable recovery path: check BEFORE direction gates.
+        # If toss/contact evidence is very strong, allow into pool despite
+        # unreliable post-contact direction tracking (tracker lost ball).
+        direction_unreliable = False
+        if (rightward_fraction < 0.35 and net_dx <= 0) or net_dx < -500:
+            if (upward_fraction > 0.5
+                    and recent_upward_fraction > 0.5
+                    and drop > 100
+                    and cv > 1000
+                    and faa > 20):
+                direction_unreliable = True
+            else:
+                # Hard reject: direction is bad AND toss evidence is weak
+                if net_dx < -500:
+                    continue  # strongly leftward, no excuse
+                if rightward_fraction < 0.35 and net_dx <= 0:
+                    continue  # clearly non-rightward, no excuse
+
+        # Early post-contact downward-shape rejection for obvious floor-drive events.
+        # A true serve can descend post-contact, but should not look like an
+        # immediate sharp drive into the floor with weak toss geometry.
+        early_post_downward_fraction = float(
+            event.get("early_post_downward_fraction", 0.0)
+        )
+        early_post_net_dy = float(event.get("early_post_net_dy", 0.0))
+        if (
+            rightward_fraction > 0.45
+            and early_post_downward_fraction > 0.70
+            and early_post_net_dy > 45
+            and drop < 80
+        ):
+            continue
+
+        event["rightward_fraction"] = rightward_fraction
+        event["net_rightward_displacement"] = float(net_dx)
+        event["direction_unreliable"] = direction_unreliable
+        gated_events.append(event)
+
+    serve_events = gated_events
+
     # Score each candidate to find the most likely true serves
     for event in serve_events:
-        contact_frame = event["contact_frame"]
+        scoring_frame = event["_peak_frame"]
         apex_frame = event["apex_frame"]
         post_end = event["post_contact_end_frame"]
         contact_vel = event["contact_velocity"]
@@ -454,10 +674,9 @@ def detect_serve_events(
         score = float(contact_vel)
 
         # Acceleration/change at contact
-        pre_start = max(0, contact_frame - 5)
-        if pre_start < contact_frame:
-            pre_vel = np.mean(velocities[pre_start:contact_frame])
-            score += float(max(0, contact_vel - pre_vel))
+        pre_start = max(0, scoring_frame - 5)
+        if pre_start < scoring_frame:
+            pre_vel = np.mean(velocities[pre_start:scoring_frame])
 
         score += upward_fraction * 80.0
         score += recent_upward_fraction * 120.0
@@ -465,12 +684,12 @@ def detect_serve_events(
         score += float(max(0.0, drop_after_apex) * 0.35)
 
         # Post-contact sustained motion
-        post_vels = velocities[contact_frame + 1 : post_end]
+        post_vels = velocities[scoring_frame + 1 : post_end]
         if len(post_vels) > 0:
             score += float(np.mean(post_vels) * 2.0)
 
         # Proximity after apex penalty
-        frames_after_apex = contact_frame - apex_frame
+        frames_after_apex = scoring_frame - apex_frame
         if frames_after_apex <= fps * 0.45:
             score += 120.0
         elif frames_after_apex <= fps * 0.75:
@@ -480,6 +699,27 @@ def detect_serve_events(
 
         if drop_after_apex < 120:
             score -= float((120.0 - drop_after_apex) * 2.5)
+
+        # Contradictory direction penalty (not hard reject):
+        # smoothed velocity says rightward but net displacement is leftward.
+        # Heavy penalty to deprioritize without over-pruning borderline cases.
+        if rightward_fraction >= 0.5 and net_dx <= -10:
+            score -= 500.0
+
+        # Direction-unreliable penalty: tracker lost ball post-contact.
+        # Strong toss evidence but leftward nrd — penalize but don't kill.
+        if event.get("direction_unreliable", False):
+            score -= 300.0
+
+        # Rightward motion scoring — strong positive signal for true serves
+        rightward_frac = float(event.get("rightward_fraction", 0.0))
+        net_rightward = float(event.get("net_rightward_displacement", 0.0))
+        score += rightward_frac * 150.0
+        score += float(max(0.0, net_rightward) * 0.5)
+
+        # Penalty for leftward post-contact motion (rebound / camera shake)
+        if net_rightward < -20.0:
+            score -= float(min(abs(net_rightward) * 1.5, 200.0))
 
         event["score"] = score
 
@@ -534,7 +774,7 @@ def analyze_serve(
 
     # Extract phase positions
     toss_positions = positions[toss_start : contact + 1]
-    post_positions = positions[contact : post_end + 1]
+    post_positions = positions[contact + 1 : post_end + 1]
 
     # Compute velocities for each phase
     def phase_stats(phase_positions: List[Tuple[float, float]]) -> Tuple[float, float]:
@@ -548,6 +788,39 @@ def analyze_serve(
     toss_max, toss_mean = phase_stats(toss_positions)
     post_max, post_mean = phase_stats(post_positions)
 
+    # Robust post-contact speed with mean-relative plausibility gate.
+    # The phase_stats mean is naturally robust (smoothed over full window).
+    # Short-window computation can be corrupted by tracking artifacts.
+    # Plausibility gate: if robust value is outside [0.3×, 2.0×] of mean,
+    # fall back to 1.5× mean as a conservative peak estimate.
+    robust_post_max = post_mean  # conservative fallback
+    if len(post_positions) >= 3:
+        post_arr = np.array(post_positions)
+        short_end = min(len(post_arr), 13)
+        short_post = post_arr[:short_end]
+        dx = np.diff(short_post[:, 0])
+        dy = np.diff(short_post[:, 1])
+        frame_speeds = np.sqrt(dx**2 + dy**2) * scale_factor * fps * 3.6
+
+        med_speed = float(np.median(frame_speeds))
+        if med_speed > 0:
+            upper_bound = 3.0 * med_speed
+            inlier_speeds = frame_speeds[frame_speeds <= upper_bound]
+        else:
+            inlier_speeds = frame_speeds
+
+        rightward_mask = dx > 0.5
+        rightward_inliers = inlier_speeds[rightward_mask[:len(inlier_speeds)]]
+        if len(rightward_inliers) >= 2:
+            robust_post_max = float(np.median(rightward_inliers))
+        elif len(inlier_speeds) >= 2:
+            robust_post_max = float(np.median(inlier_speeds))
+
+    # Plausibility gate: reject unreasonable robust values
+    if post_mean > 0:
+        if robust_post_max > 2.0 * post_mean or robust_post_max < 0.3 * post_mean:
+            robust_post_max = 1.5 * post_mean
+
     return ServeEvent(
         serve_number=serve_idx + 1,
         toss_start_frame=toss_start,
@@ -558,7 +831,7 @@ def analyze_serve(
         post_contact_positions=post_positions,
         toss_max_velocity=toss_max,
         toss_mean_velocity=toss_mean,
-        post_contact_max_velocity=post_max,
+        post_contact_max_velocity=robust_post_max,
         post_contact_mean_velocity=post_mean,
         peak_position=event["apex_position"],
         peak_frame=event["apex_frame"],
@@ -754,6 +1027,7 @@ Examples:
     print("\n=== Step 3: Computing Velocities ===")
     velocities = compute_frame_velocities(positions, fps)
     vert_velocities = compute_vertical_velocity(positions)
+    horiz_velocities = compute_horizontal_velocity(positions)
 
     # Step 4: Detect serve events
     print("\n=== Step 4: Detecting Serve Events ===")
@@ -761,6 +1035,7 @@ Examples:
         positions,
         velocities,
         vert_velocities,
+        horiz_velocities=horiz_velocities,
         fps=fps,
         expected_serves=args.expected_serves,
     )

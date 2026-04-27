@@ -22,6 +22,10 @@ Tennis serve velocity estimation from lateral video. Python package using OpenCV
 │   ├── multi_serve.py     # Multi-serve detector: YOLO+HSV tracking, serve event detection
 ├── tests/                 # unittest TestCases
 ├── notebooks/             # Jupyter analysis notebooks
+├── web/                   # Web app (Vite React + FastAPI backend)
+│   ├── backend/           # FastAPI local API runner
+│   ├── src/               # React frontend
+│   └── package.json       # npm managed
 └── .sisyphus/             # Sisyphus tooling (not project code)
 ```
 
@@ -30,6 +34,9 @@ Tennis serve velocity estimation from lateral video. Python package using OpenCV
 |------|----------|-------|
 | Speed graph script | `serve_analyzer/plot_serve.py` | Generates matplotlib speed profile from video |
 | Multi-serve analysis | `serve_analyzer/multi_serve.py` | Detects N serves, toss vs post-contact phases |
+| Web app frontend | `web/src/` | React + Vite + Tailwind v4 + shadcn/ui |
+| Web app backend | `web/backend/` | FastAPI on port 8000, `python -m web.backend` to start |
+| Web clip service | `web/backend/services/clip_service.py` | ffmpeg-based per-serve MP4 extraction |
 
 ## CONVENTIONS (THIS PROJECT)
 - **No pyproject.toml/setup.cfg** — Nix flake is the ONLY build/dep mechanism
@@ -70,6 +77,13 @@ python -m unittest discover -s tests -v
 
 # Jupyter notebooks
 jupyter notebook notebooks/
+# Web backend (local FastAPI)
+python -m web.backend    # starts on port 8000 (NOT python -m web.backend.app)
+
+# Web frontend dev
+cd web && npm run dev    # Vite on port 5173, proxies /api and /clips to :8000
+cd web && npm run build  # production build
+cd web && npm test -- --run  # vitest
 ```
 
 ## NOTES
@@ -124,3 +138,23 @@ jupyter notebook notebooks/
 **Lesson:** Add cloned research repos or other nested `.git` directories to `.gitignore` before `git add`; if staged accidentally, remove them from the outer index with `git rm --cached -r -f`.
 **Context:** Embedded repos trigger add warnings and pollute outer-repo commits without including their contents.
 **Verify:** `git status --short` should not show `tennis-analysis-with-cv/` or `tennis_serve_speed/` in the outer repo.
+
+### Validate input BEFORE mutating state
+**Lesson:** In FastAPI (or any stateful handler), validate request properties (content type, extension, size) BEFORE calling `reset_state()` or `set_state()`. Rejected requests must not leave state stuck in `uploading`.
+**Context:** Invalid upload after `set_state(uploading)` blocked all future uploads with 409 until manual reset.
+**Verify:** Send invalid content type to upload endpoint, then `GET /api/job` — should return `idle`, not `uploading`.
+
+### Pydantic response models must match runtime data shapes
+**Lesson:** When FastAPI schemas declare `clips: List[str]` but the handler stores `List[Dict]`, `response_model` validation fails at serialization time. Keep schema types aligned with actual runtime data.
+**Context:** Done-state `GET /api/job` threw `ResponseValidationError` because `clips` was declared `List[str]` but stored as metadata dicts.
+**Verify:** Check `web/backend/schemas.py` field types match what `state.py` and `app.py` actually store.
+
+### Subagent "move" instructions leave duplicate blocks
+**Lesson:** When delegating "move validation before state change", explicitly instruct: "Remove the OLD validation block after the state change — do NOT leave duplicates." Subagents often ADD code at new location without REMOVING from old location.
+**Context:** Upload validation was duplicated (lines 63-71 AND 76-84) after subagent moved it before state change but forgot to remove the old copy.
+**Verify:** After any "move/reorder" delegation, grep for duplicate function calls or validation blocks.
+
+### Nix develop can serve stale derivations
+**Lesson:** If `flake.nix` lists a package but `nix develop` can't import it, the nix store derivation may be stale. Pragmatic fallback: `pip install <pkg>` into `.venv` (which already uses `--system-site-packages`). Don't waste time debugging nix cache.
+**Context:** `fastapi` was in `flake.nix` pythonEnv but nix store site-packages didn't contain it. `pip install fastapi uvicorn python-multipart` into .venv resolved it immediately.
+**Verify:** `source .venv/bin/activate && python -c 'import fastapi'` — no ModuleNotFoundError
