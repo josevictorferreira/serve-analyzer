@@ -21,6 +21,22 @@ def get_clips_dir() -> str:
     return clips
 
 
+def get_annotation_root() -> str:
+    """Return the local root directory for annotation sessions."""
+    root = os.environ.get("SERVE_ANALYZER_ANNOTATION_DIR")
+    if root is None:
+        root = os.path.join(tempfile.gettempdir(), "serve_analyzer_annotations")
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def get_annotation_session_dir(session_id: str) -> str:
+    """Return the directory for one annotation session."""
+    session_dir = os.path.join(get_annotation_root(), session_id)
+    os.makedirs(session_dir, exist_ok=True)
+    return session_dir
+
+
 def clean_temp_clips() -> None:
     """Remove all files from the clips directory on startup."""
     clips = get_clips_dir()

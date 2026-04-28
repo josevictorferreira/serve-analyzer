@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAnalysisJob } from './hooks/use-analysis-job'
 import { UploadDropzone } from './components/upload-dropzone'
+import { AnnotationWorkspace } from './components/annotation-workspace'
 import { Timeline } from './components/timeline'
 import { VideoPlayer } from './components/video-player'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +28,7 @@ function formatDuration(seconds: number): string {
 function App() {
   const { phase, progress, error, jobStatus, upload, reset, estimatedDurationSec, analysisProgress } = useAnalysisJob()
   const [activeClipIndex, setActiveClipIndex] = useState(0)
+  const [mode, setMode] = useState<'analysis' | 'annotation'>('analysis')
 
   const clips = jobStatus?.clips || []
   const candidates = jobStatus?.selected_serves || []
@@ -46,18 +48,36 @@ function App() {
       <header className="border-b">
         <div className="container mx-auto py-4 px-6 flex justify-between items-center">
           <h1 className="text-2xl font-bold">Serve Analyzer</h1>
-          {(phase === 'done' || phase === 'error') && (
-            <Button variant="ghost" size="sm" onClick={reset} className="gap-2">
-              <RefreshCw className="w-4 h-4" />
-              New Analysis
+          <div className="flex items-center gap-2">
+            <Button
+              variant={mode === 'analysis' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setMode('analysis')}
+            >
+              Analyze Serves
             </Button>
-          )}
+            <Button
+              variant={mode === 'annotation' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setMode('annotation')}
+            >
+              Annotate Ball
+            </Button>
+            {mode === 'analysis' && (phase === 'done' || phase === 'error') && (
+              <Button variant="ghost" size="sm" onClick={reset} className="gap-2">
+                <RefreshCw className="w-4 h-4" />
+                New Analysis
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 container mx-auto py-8 px-6">
-        {phase === 'idle' ? (
+        {mode === 'annotation' ? (
+          <AnnotationWorkspace />
+        ) : phase === 'idle' ? (
           <div className="h-full flex flex-col items-center justify-center py-12">
             <UploadDropzone onFileSelect={upload} />
           </div>
@@ -82,7 +102,9 @@ function App() {
               <div className="flex items-center justify-between bg-white p-4 rounded-xl border shadow-sm">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Serve #{activeClipIndex + 1} Analysis</h2>
-                  <p className="text-sm text-slate-500 font-medium">Automatic detection via HSV tracking & kinematic profiling</p>
+                  <p className="text-sm text-slate-500 font-medium">
+                    Automatic detection via {jobStatus?.detector === 'tracknetv2' ? 'TrackNetV2' : 'YOLO/HSV'} tracking & kinematic profiling
+                  </p>
                 </div>
                 {candidates[activeClipIndex]?.post_contact_max_kmh && (
                   <div className="text-right">

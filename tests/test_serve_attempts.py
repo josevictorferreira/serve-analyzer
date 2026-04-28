@@ -823,13 +823,13 @@ class TestInferServeCount(unittest.TestCase):
     def test_clear_elbow_cuts_at_gap(self):
         """A large rank gap should cut the count before it."""
         candidates = [
-            {"selector_rank": 0.60, "contact_time_sec": 5.0},
-            {"selector_rank": 0.55, "contact_time_sec": 15.0},
-            {"selector_rank": 0.50, "contact_time_sec": 25.0},
-            {"selector_rank": 0.15, "contact_time_sec": 35.0},
-            {"selector_rank": 0.10, "contact_time_sec": 45.0},
+            {"selector_rank": 0.90, "contact_time_sec": 5.0},
+            {"selector_rank": 0.85, "contact_time_sec": 15.0},
+            {"selector_rank": 0.80, "contact_time_sec": 25.0},
+            {"selector_rank": 0.10, "contact_time_sec": 35.0},
+            {"selector_rank": 0.05, "contact_time_sec": 45.0},
         ]
-        # Gap between 0.50 and 0.15 is 0.35 — much larger than others
+        # Gap between 0.80 and 0.10 is 0.70 - clear elbow
         result = infer_serve_count(candidates)
         self.assertEqual(result, 3)
 

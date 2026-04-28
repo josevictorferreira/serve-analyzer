@@ -1,0 +1,691 @@
+{
+  "summary": {
+    "sample_count": 38,
+    "standard_hits": 8,
+    "sahi_hits": 36,
+    "agreement_hits_200px": 2,
+    "sahi_only_times": [
+      0,
+      2,
+      4,
+      8,
+      10,
+      12,
+      16,
+      22,
+      24,
+      26,
+      30,
+      32,
+      34,
+      36,
+      37,
+      38,
+      42,
+      44,
+      46,
+      50,
+      54,
+      56,
+      58,
+      60,
+      62,
+      64,
+      66,
+      68
+    ],
+    "standard_only_times": [],
+    "top_sahi_clusters": [
+      {
+        "x": 2500,
+        "y": 800,
+        "count": 22
+      },
+      {
+        "x": 2500,
+        "y": 2000,
+        "count": 7
+      },
+      {
+        "x": 2100,
+        "y": 1100,
+        "count": 2
+      },
+      {
+        "x": 3100,
+        "y": 1700,
+        "count": 1
+      },
+      {
+        "x": 3000,
+        "y": 900,
+        "count": 1
+      },
+      {
+        "x": 3700,
+        "y": 2000,
+        "count": 1
+      },
+      {
+        "x": 3400,
+        "y": 1300,
+        "count": 1
+      },
+      {
+        "x": 1900,
+        "y": 2100,
+        "count": 1
+      }
+    ],
+    "mean_sahi_runtime_sec": 6.4708016546149,
+    "total_runtime_sec": 270.16864347457886
+  },
+  "records": [
+    {
+      "time_sec": 0,
+      "frame": 0,
+      "standard": null,
+      "sahi": {
+        "x": 3083.5283203125,
+        "y": 1681.9463500976562,
+        "w": 123.83282470703125,
+        "h": 92.45439147949219,
+        "conf": 0.6825131177902222
+      },
+      "sahi_total_predictions": 2,
+      "sahi_runtime_sec": 6.965912580490112,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 2,
+      "frame": 119,
+      "standard": null,
+      "sahi": {
+        "x": 2986.6423950195312,
+        "y": 859.714599609375,
+        "w": 66.51737976074219,
+        "h": 110.8189697265625,
+        "conf": 0.3740423917770386
+      },
+      "sahi_total_predictions": 4,
+      "sahi_runtime_sec": 5.705657005310059,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 4,
+      "frame": 239,
+      "standard": null,
+      "sahi": {
+        "x": 3718.7166137695312,
+        "y": 2018.1739501953125,
+        "w": 121.24847412109375,
+        "h": 141.820556640625,
+        "conf": 0.7481406927108765
+      },
+      "sahi_total_predictions": 7,
+      "sahi_runtime_sec": 5.912294864654541,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 6,
+      "frame": 359,
+      "standard": {
+        "x": 2552.005615234375,
+        "y": 851.1165161132812,
+        "w": 55.78271484375,
+        "h": 39.66064453125,
+        "conf": 0.3186935782432556
+      },
+      "sahi": {
+        "x": 2466.8058471679688,
+        "y": 1979.8660278320312,
+        "w": 93.19415283203125,
+        "h": 152.2542724609375,
+        "conf": 0.49693718552589417
+      },
+      "sahi_total_predictions": 3,
+      "sahi_runtime_sec": 6.723398685455322,
+      "agreement_distance_px": 1131.960450141208
+    },
+    {
+      "time_sec": 8,
+      "frame": 479,
+      "standard": null,
+      "sahi": {
+        "x": 2466.0250244140625,
+        "y": 1979.0492553710938,
+        "w": 93.9749755859375,
+        "h": 156.32373046875,
+        "conf": 0.21264903247356415
+      },
+      "sahi_total_predictions": 2,
+      "sahi_runtime_sec": 5.835184335708618,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 10,
+      "frame": 599,
+      "standard": null,
+      "sahi": {
+        "x": 2465.8294067382812,
+        "y": 1979.1959838867188,
+        "w": 94.17059326171875,
+        "h": 155.343994140625,
+        "conf": 0.2018738090991974
+      },
+      "sahi_total_predictions": 2,
+      "sahi_runtime_sec": 5.8841423988342285,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 12,
+      "frame": 719,
+      "standard": null,
+      "sahi": {
+        "x": 2465.630126953125,
+        "y": 1978.749267578125,
+        "w": 94.369873046875,
+        "h": 156.8740234375,
+        "conf": 0.19783036410808563
+      },
+      "sahi_total_predictions": 2,
+      "sahi_runtime_sec": 6.397884368896484,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 13,
+      "frame": 779,
+      "standard": null,
+      "sahi": null,
+      "sahi_total_predictions": 4,
+      "sahi_runtime_sec": 6.5095155239105225,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 14,
+      "frame": 839,
+      "standard": {
+        "x": 1701.93115234375,
+        "y": 1714.4556884765625,
+        "w": 65.0965576171875,
+        "h": 63.763916015625,
+        "conf": 0.41702979803085327
+      },
+      "sahi": {
+        "x": 2465.7734375,
+        "y": 1978.82666015625,
+        "w": 94.2265625,
+        "h": 157.94647216796875,
+        "conf": 0.18548491597175598
+      },
+      "sahi_total_predictions": 3,
+      "sahi_runtime_sec": 6.07436203956604,
+      "agreement_distance_px": 808.2988601127581
+    },
+    {
+      "time_sec": 16,
+      "frame": 959,
+      "standard": null,
+      "sahi": {
+        "x": 2523.445068359375,
+        "y": 834.6712646484375,
+        "w": 36.4427490234375,
+        "h": 41.4022216796875,
+        "conf": 0.24156524240970612
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 5.988237380981445,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 18,
+      "frame": 1079,
+      "standard": {
+        "x": 2103.38134765625,
+        "y": 1136.5621337890625,
+        "w": 50.151123046875,
+        "h": 46.185791015625,
+        "conf": 0.41431570053100586
+      },
+      "sahi": {
+        "x": 2084.17919921875,
+        "y": 1118.349365234375,
+        "w": 41.7685546875,
+        "h": 40.0836181640625,
+        "conf": 0.5232570767402649
+      },
+      "sahi_total_predictions": 6,
+      "sahi_runtime_sec": 5.814267635345459,
+      "agreement_distance_px": 26.465589792075246
+    },
+    {
+      "time_sec": 19,
+      "frame": 1139,
+      "standard": {
+        "x": 2756.625,
+        "y": 1008.6642456054688,
+        "w": 47.999755859375,
+        "h": 34.8194580078125,
+        "conf": 0.4096226692199707
+      },
+      "sahi": {
+        "x": 2522.289794921875,
+        "y": 835.8832092285156,
+        "w": 37.710205078125,
+        "h": 40.5469970703125,
+        "conf": 0.2507825791835785
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 6.153327703475952,
+      "agreement_distance_px": 291.1464835276238
+    },
+    {
+      "time_sec": 20,
+      "frame": 1199,
+      "standard": {
+        "x": 1177.478759765625,
+        "y": 1870.2861328125,
+        "w": 64.34912109375,
+        "h": 57.732421875,
+        "conf": 0.6035634875297546
+      },
+      "sahi": {
+        "x": 2521.6895751953125,
+        "y": 835.9127197265625,
+        "w": 38.3104248046875,
+        "h": 40.154541015625,
+        "conf": 0.34622859954833984
+      },
+      "sahi_total_predictions": 3,
+      "sahi_runtime_sec": 6.957979917526245,
+      "agreement_distance_px": 1696.1223641050185
+    },
+    {
+      "time_sec": 22,
+      "frame": 1319,
+      "standard": null,
+      "sahi": {
+        "x": 2521.421875,
+        "y": 836.4995727539062,
+        "w": 38.578125,
+        "h": 40.599853515625,
+        "conf": 0.2278304100036621
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 6.983297824859619,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 24,
+      "frame": 1439,
+      "standard": null,
+      "sahi": {
+        "x": 3367.8390502929688,
+        "y": 1275.7244873046875,
+        "w": 20.902374267578125,
+        "h": 24.11688232421875,
+        "conf": 0.2311154305934906
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 5.798910617828369,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 26,
+      "frame": 1559,
+      "standard": null,
+      "sahi": {
+        "x": 2518.8555908203125,
+        "y": 836.099853515625,
+        "w": 41.0853271484375,
+        "h": 42.6357421875,
+        "conf": 0.2317192107439041
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 6.010405540466309,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 28,
+      "frame": 1679,
+      "standard": {
+        "x": 3323.466064453125,
+        "y": 1075.368896484375,
+        "w": 51.04248046875,
+        "h": 46.1490478515625,
+        "conf": 0.5877508521080017
+      },
+      "sahi": {
+        "x": 2520.109375,
+        "y": 836.0726928710938,
+        "w": 39.8193359375,
+        "h": 42.0506591796875,
+        "conf": 0.313505083322525
+      },
+      "sahi_total_predictions": 8,
+      "sahi_runtime_sec": 5.881297588348389,
+      "agreement_distance_px": 838.2390133803208
+    },
+    {
+      "time_sec": 30,
+      "frame": 1799,
+      "standard": null,
+      "sahi": {
+        "x": 2520.8414306640625,
+        "y": 836.2743835449219,
+        "w": 39.1585693359375,
+        "h": 40.4801025390625,
+        "conf": 0.2755071520805359
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 6.504404306411743,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 32,
+      "frame": 1919,
+      "standard": null,
+      "sahi": {
+        "x": 2520.5302734375,
+        "y": 836.1007080078125,
+        "w": 39.389404296875,
+        "h": 42.98291015625,
+        "conf": 0.24682848155498505
+      },
+      "sahi_total_predictions": 4,
+      "sahi_runtime_sec": 6.66595196723938,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 34,
+      "frame": 2039,
+      "standard": null,
+      "sahi": {
+        "x": 2520.0247802734375,
+        "y": 836.4742431640625,
+        "w": 39.9752197265625,
+        "h": 41.0029296875,
+        "conf": 0.1963219791650772
+      },
+      "sahi_total_predictions": 6,
+      "sahi_runtime_sec": 6.575341701507568,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 36,
+      "frame": 2159,
+      "standard": null,
+      "sahi": {
+        "x": 2520.883544921875,
+        "y": 836.0550537109375,
+        "w": 39.046630859375,
+        "h": 42.44091796875,
+        "conf": 0.2721274495124817
+      },
+      "sahi_total_predictions": 7,
+      "sahi_runtime_sec": 6.5209832191467285,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 37,
+      "frame": 2218,
+      "standard": null,
+      "sahi": {
+        "x": 2521.19287109375,
+        "y": 836.1153564453125,
+        "w": 38.72412109375,
+        "h": 42.5919189453125,
+        "conf": 0.269314706325531
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 7.015567064285278,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 38,
+      "frame": 2278,
+      "standard": null,
+      "sahi": {
+        "x": 2519.5283813476562,
+        "y": 836.468994140625,
+        "w": 40.416748046875,
+        "h": 42.701171875,
+        "conf": 0.18350151181221008
+      },
+      "sahi_total_predictions": 7,
+      "sahi_runtime_sec": 6.899058818817139,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 40,
+      "frame": 2398,
+      "standard": {
+        "x": 402.32110595703125,
+        "y": 1253.703125,
+        "w": 137.47393798828125,
+        "h": 90.4508056640625,
+        "conf": 0.4540356397628784
+      },
+      "sahi": {
+        "x": 2520.1924438476562,
+        "y": 836.667236328125,
+        "w": 39.7613525390625,
+        "h": 42.16015625,
+        "conf": 0.18849079310894012
+      },
+      "sahi_total_predictions": 4,
+      "sahi_runtime_sec": 6.576547145843506,
+      "agreement_distance_px": 2158.540696002502
+    },
+    {
+      "time_sec": 42,
+      "frame": 2518,
+      "standard": null,
+      "sahi": {
+        "x": 2519.9581909179688,
+        "y": 835.9939270019531,
+        "w": 39.971923828125,
+        "h": 43.47772216796875,
+        "conf": 0.2986762523651123
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 7.03793740272522,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 44,
+      "frame": 2638,
+      "standard": null,
+      "sahi": {
+        "x": 2520.6146240234375,
+        "y": 836.4022827148438,
+        "w": 39.3017578125,
+        "h": 42.18994140625,
+        "conf": 0.4604679048061371
+      },
+      "sahi_total_predictions": 6,
+      "sahi_runtime_sec": 6.663405656814575,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 46,
+      "frame": 2758,
+      "standard": null,
+      "sahi": {
+        "x": 2464.9796142578125,
+        "y": 1981.1219482421875,
+        "w": 95.009521484375,
+        "h": 165.82061767578125,
+        "conf": 0.23484478890895844
+      },
+      "sahi_total_predictions": 4,
+      "sahi_runtime_sec": 7.110165357589722,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 48,
+      "frame": 2878,
+      "standard": null,
+      "sahi": null,
+      "sahi_total_predictions": 4,
+      "sahi_runtime_sec": 6.910036087036133,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 50,
+      "frame": 2998,
+      "standard": null,
+      "sahi": {
+        "x": 2465.0606079101562,
+        "y": 1980.5614624023438,
+        "w": 94.93939208984375,
+        "h": 163.73809814453125,
+        "conf": 0.25517961382865906
+      },
+      "sahi_total_predictions": 6,
+      "sahi_runtime_sec": 7.218463182449341,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 52,
+      "frame": 3118,
+      "standard": {
+        "x": 2127.187255859375,
+        "y": 1144.03564453125,
+        "w": 50.4541015625,
+        "h": 47.1871337890625,
+        "conf": 0.5591849684715271
+      },
+      "sahi": {
+        "x": 2105.7978515625,
+        "y": 1126.84326171875,
+        "w": 42.609130859375,
+        "h": 38.11669921875,
+        "conf": 0.6933805346488953
+      },
+      "sahi_total_predictions": 6,
+      "sahi_runtime_sec": 6.692472457885742,
+      "agreement_distance_px": 27.44238770491227
+    },
+    {
+      "time_sec": 54,
+      "frame": 3238,
+      "standard": null,
+      "sahi": {
+        "x": 2519.54931640625,
+        "y": 836.2339477539062,
+        "w": 40.3951416015625,
+        "h": 42.46826171875,
+        "conf": 0.2157214879989624
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 7.067694187164307,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 56,
+      "frame": 3358,
+      "standard": null,
+      "sahi": {
+        "x": 2519.958251953125,
+        "y": 836.4883117675781,
+        "w": 39.986328125,
+        "h": 42.76226806640625,
+        "conf": 0.20434033870697021
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 6.774438142776489,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 58,
+      "frame": 3478,
+      "standard": null,
+      "sahi": {
+        "x": 2519.89892578125,
+        "y": 836.0136108398438,
+        "w": 40.03173828125,
+        "h": 43.221435546875,
+        "conf": 0.22861821949481964
+      },
+      "sahi_total_predictions": 7,
+      "sahi_runtime_sec": 6.836888551712036,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 60,
+      "frame": 3598,
+      "standard": null,
+      "sahi": {
+        "x": 2520.4082641601562,
+        "y": 836.8048095703125,
+        "w": 39.5255126953125,
+        "h": 42.26580810546875,
+        "conf": 0.24925141036510468
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 5.982589244842529,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 62,
+      "frame": 3718,
+      "standard": null,
+      "sahi": {
+        "x": 2520.0338745117188,
+        "y": 836.2697143554688,
+        "w": 39.907958984375,
+        "h": 43.16827392578125,
+        "conf": 0.4155399799346924
+      },
+      "sahi_total_predictions": 5,
+      "sahi_runtime_sec": 7.092176198959351,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 64,
+      "frame": 3838,
+      "standard": null,
+      "sahi": {
+        "x": 2519.4375610351562,
+        "y": 836.0827026367188,
+        "w": 40.4962158203125,
+        "h": 42.6990966796875,
+        "conf": 0.38565537333488464
+      },
+      "sahi_total_predictions": 6,
+      "sahi_runtime_sec": 5.735764503479004,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 66,
+      "frame": 3958,
+      "standard": null,
+      "sahi": {
+        "x": 2519.760009765625,
+        "y": 836.1150512695312,
+        "w": 40.1837158203125,
+        "h": 42.83349609375,
+        "conf": 0.36681318283081055
+      },
+      "sahi_total_predictions": 6,
+      "sahi_runtime_sec": 6.449567079544067,
+      "agreement_distance_px": null
+    },
+    {
+      "time_sec": 68,
+      "frame": 4078,
+      "standard": null,
+      "sahi": {
+        "x": 1930.2701110839844,
+        "y": 2061.821044921875,
+        "w": 145.09207153320312,
+        "h": 98.0745849609375,
+        "conf": 0.36284589767456055
+      },
+      "sahi_total_predictions": 2,
+      "sahi_runtime_sec": 5.964934587478638,
+      "agreement_distance_px": null
+    }
+  ]
+}

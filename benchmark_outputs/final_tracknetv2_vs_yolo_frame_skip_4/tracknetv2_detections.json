@@ -1,0 +1,10 @@
+{
+  "video_path": "video.mov",
+  "detector": "tracknetv2",
+  "expected_serves": 8,
+  "frame_skip": 4,
+  "start_frame": 0,
+  "runtime_sec": 695.1984934459997,
+  "selected_serves": [],
+  "candidates": []
+}

@@ -10,6 +10,11 @@ from unittest.mock import patch
 from web.backend.services.analysis_service import run_analysis
 
 
+def _detection_result(candidates):
+    """Return the detector result shape used by the web adapter."""
+    return {"candidates": candidates, "positions": [], "frame_skip": 1}
+
+
 class TestAnalysisServiceShape(unittest.TestCase):
     """Adapter returns correct keys and excludes evaluator-only keys."""
 
@@ -18,9 +23,11 @@ class TestAnalysisServiceShape(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_result_has_required_keys(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = [
-            {"contact_time_sec": 10.0, "score": 0.9},
-        ]
+        mock_detect.return_value = _detection_result(
+            [
+                {"contact_time_sec": 10.0, "score": 0.9},
+            ]
+        )
         mock_select.return_value = [
             {"contact_time_sec": 10.0, "score": 0.9, "selector_rank": 0.5},
         ]
@@ -54,7 +61,7 @@ class TestAnalysisServiceShape(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_empty_candidates_shape(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         result = run_analysis("/tmp/video.mov")
@@ -73,9 +80,11 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_none_means_inferred(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = [
-            {"contact_time_sec": 10.0, "score": 0.9},
-        ]
+        mock_detect.return_value = _detection_result(
+            [
+                {"contact_time_sec": 10.0, "score": 0.9},
+            ]
+        )
         mock_select.return_value = [
             {"contact_time_sec": 10.0, "score": 0.9, "selector_rank": 0.5},
         ]
@@ -89,10 +98,12 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_explicit_int_not_inferred(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = [
-            {"contact_time_sec": 10.0, "score": 0.9},
-            {"contact_time_sec": 30.0, "score": 0.8},
-        ]
+        mock_detect.return_value = _detection_result(
+            [
+                {"contact_time_sec": 10.0, "score": 0.9},
+                {"contact_time_sec": 30.0, "score": 0.8},
+            ]
+        )
         mock_select.return_value = [
             {"contact_time_sec": 10.0, "score": 0.9, "selector_rank": 0.5},
         ]
@@ -109,7 +120,7 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
     ):
         """When expected_serves=None, detect_serve_candidates receives None."""
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         run_analysis("/tmp/video.mov", expected_serves=None)
@@ -124,7 +135,7 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
         self, mock_detect, mock_select, mock_info
     ):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         run_analysis("/tmp/video.mov", expected_serves=5)
@@ -142,7 +153,7 @@ class TestAnalysisServiceProgress(unittest.TestCase):
         self, mock_detect, mock_select, mock_info
     ):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         phases = []
@@ -158,7 +169,7 @@ class TestAnalysisServiceProgress(unittest.TestCase):
         self, mock_detect, mock_select, mock_info
     ):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         phases = []
@@ -171,7 +182,7 @@ class TestAnalysisServiceProgress(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_no_callback_when_none_provided(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         # Should not raise
@@ -187,7 +198,7 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_4k_uses_frame_skip_4(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 3840, "height": 2160, "frame_count": 4133}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         run_analysis("/tmp/video.mov")
@@ -199,7 +210,7 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_1080p_uses_frame_skip_2(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1920, "height": 1080, "frame_count": 2000}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         run_analysis("/tmp/video.mov")
@@ -211,7 +222,7 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
     @patch("web.backend.services.analysis_service.detect_serve_candidates")
     def test_small_video_uses_frame_skip_1(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         run_analysis("/tmp/video.mov")
@@ -225,7 +236,7 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
         self, mock_detect, mock_select, mock_info
     ):
         mock_info.return_value = {"width": 3840, "height": 2160, "frame_count": 4133}
-        mock_detect.return_value = []
+        mock_detect.return_value = _detection_result([])
         mock_select.return_value = []
 
         run_analysis("/tmp/video.mov", expected_serves=None)

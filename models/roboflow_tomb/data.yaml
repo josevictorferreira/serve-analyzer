@@ -1,0 +1,12 @@
+names:
+- Tennis-Balls
+nc: 1
+roboflow:
+  license: CC BY 4.0
+  project: tennis-ball-detection-0szyt
+  url: https://universe.roboflow.com/tom-b/tennis-ball-detection-0szyt/dataset/3
+  version: 3
+  workspace: tom-b
+test: ../test/images
+train: ../train/images
+val: ../valid/images

@@ -1,0 +1,12 @@
+names:
+- tennis ball
+nc: 1
+roboflow:
+  license: CC BY 4.0
+  project: tennis-serve
+  url: https://universe.roboflow.com/class-1usc7/tennis-serve/dataset/2
+  version: 2
+  workspace: class-1usc7
+test: ../test/images
+train: ../train/images
+val: ../valid/images

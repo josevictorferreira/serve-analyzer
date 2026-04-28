@@ -10,6 +10,9 @@ import json
 import math
 from typing import Any, Dict, List, Optional, Sequence
 
+import numpy as np
+from scipy import signal
+
 from serve_analyzer.multi_serve import (
     analyze_serve,
     compute_frame_velocities,
@@ -64,10 +67,190 @@ def _merge_candidate_events(
     return merged
 
 
+def _detect_broad_trajectory_events(
+    positions: List[tuple[float, float]],
+    velocities: np.ndarray,
+    vert_velocities: np.ndarray,
+    horiz_velocities: np.ndarray,
+    fps: float,
+    expected_serves: int,
+    velocity_spike_percentile: float = 70.0,
+    min_serve_gap_sec: float = 1.5,
+    toss_lookback_sec: float = 2.2,
+    post_contact_duration_sec: float = 1.0,
+) -> List[Dict[str, Any]]:
+    """Build a broad detector-only serve candidate pool from trajectory peaks."""
+    if not positions or len(velocities) == 0:
+        return []
+
+    n = len(positions)
+    min_gap_frames = max(1, int(min_serve_gap_sec * fps))
+    toss_lookback = max(1, int(toss_lookback_sec * fps))
+    post_duration = max(1, int(post_contact_duration_sec * fps))
+    velocity_threshold = float(np.percentile(velocities, velocity_spike_percentile))
+    peaks, _properties = signal.find_peaks(
+        velocities,
+        height=velocity_threshold,
+        distance=min_gap_frames,
+        prominence=max(velocity_threshold * 0.15, 1.0),
+    )
+
+    events: List[Dict[str, Any]] = []
+    eof_margin = int(n * 0.05)
+    for peak_frame in peaks:
+        scoring_frame = int(peak_frame)
+        if scoring_frame > n - eof_margin:
+            continue
+
+        search_start = max(0, scoring_frame - toss_lookback)
+        toss_positions = positions[search_start : scoring_frame + 1]
+        if len(toss_positions) < 2:
+            continue
+
+        toss_region = vert_velocities[search_start:scoring_frame]
+        upward_fraction = (
+            float(np.mean(toss_region < -1.0)) if len(toss_region) > 0 else 0.0
+        )
+        recent_window = int(0.6 * fps)
+        recent_region = vert_velocities[
+            max(search_start, scoring_frame - recent_window) : scoring_frame
+        ]
+        recent_upward_fraction = (
+            float(np.mean(recent_region < -1.0)) if len(recent_region) > 0 else 0.0
+        )
+
+        y_coords = [position[1] for position in toss_positions]
+        apex_idx = int(np.argmin(y_coords))
+        apex_frame = search_start + apex_idx
+        apex_position = toss_positions[apex_idx]
+        frames_after_apex = scoring_frame - apex_frame
+        drop_after_apex = positions[scoring_frame][1] - apex_position[1]
+
+        velocities_region = velocities[search_start : apex_frame + 1]
+        toss_start = search_start
+        if len(velocities_region) > 5:
+            vel_threshold = float(np.max(velocities_region) * 0.15)
+            for index in range(apex_frame - 1, search_start - 1, -1):
+                if velocities[index] < vel_threshold:
+                    toss_start = index
+                    break
+        toss_rise_px = max(0.0, positions[toss_start][1] - apex_position[1])
+        toss_duration_frames = max(0, apex_frame - toss_start)
+
+        has_toss_evidence = (
+            upward_fraction > 0.35
+            or recent_upward_fraction > 0.35
+            or (toss_rise_px > 80.0 and toss_duration_frames > int(0.12 * fps))
+        )
+        if not has_toss_evidence:
+            continue
+
+        if toss_rise_px < 5.0 and toss_duration_frames < 6:
+            continue
+
+        contact_velocity = float(velocities[scoring_frame])
+        if drop_after_apex > 1400.0 or contact_velocity > 4000.0:
+            continue
+
+        post_end = min(n - 1, scoring_frame + post_duration)
+        early_post_end = scoring_frame + max(1, (post_end - scoring_frame) // 2)
+        post_horiz = horiz_velocities[scoring_frame + 1 : early_post_end + 1]
+        rightward_fraction = (
+            float(np.mean(post_horiz > 0.5)) if len(post_horiz) > 0 else 0.0
+        )
+        post_positions = positions[scoring_frame + 1 : post_end + 1]
+        net_dx = (
+            post_positions[-1][0] - post_positions[0][0]
+            if len(post_positions) >= 2
+            else 0.0
+        )
+
+        early_post_vert = vert_velocities[
+            scoring_frame + 1 : min(post_end + 1, scoring_frame + 9)
+        ]
+        early_post_downward_fraction = (
+            float(np.mean(early_post_vert > 1.0)) if len(early_post_vert) > 0 else 0.0
+        )
+        early_post_positions = positions[
+            scoring_frame + 1 : min(post_end + 1, scoring_frame + 9)
+        ]
+        early_post_net_dy = (
+            early_post_positions[-1][1] - early_post_positions[0][1]
+            if len(early_post_positions) >= 2
+            else 0.0
+        )
+
+        direction_unreliable = False
+        if (rightward_fraction < 0.35 and net_dx <= 0.0) or net_dx < -500.0:
+            direction_unreliable = (
+                upward_fraction > 0.35
+                and recent_upward_fraction > 0.35
+                and contact_velocity > 600.0
+            )
+            if not direction_unreliable:
+                continue
+
+        post_vels = velocities[scoring_frame + 1 : post_end]
+        score = contact_velocity
+        score += upward_fraction * 80.0
+        score += recent_upward_fraction * 120.0
+        score += max(0.0, float(drop_after_apex)) * 0.25
+        if len(post_vels) > 0:
+            score += float(np.mean(post_vels) * 1.5)
+        score += rightward_fraction * 120.0
+        score += max(0.0, float(net_dx)) * 0.35
+        if direction_unreliable:
+            score -= 200.0
+        if net_dx < -20.0:
+            score -= min(abs(float(net_dx)) * 1.0, 180.0)
+
+        events.append(
+            {
+                "contact_frame": scoring_frame,
+                "_peak_frame": scoring_frame,
+                "toss_start_frame": int(toss_start),
+                "apex_frame": int(apex_frame),
+                "apex_position": apex_position,
+                "post_contact_end_frame": int(post_end),
+                "contact_velocity": contact_velocity,
+                "upward_fraction": upward_fraction,
+                "recent_upward_fraction": recent_upward_fraction,
+                "drop_after_apex": float(drop_after_apex),
+                "toss_rise_px": float(toss_rise_px),
+                "toss_duration_frames": int(toss_duration_frames),
+                "early_post_downward_fraction": early_post_downward_fraction,
+                "early_post_net_dy": float(early_post_net_dy),
+                "rightward_fraction": rightward_fraction,
+                "net_rightward_displacement": float(net_dx),
+                "direction_unreliable": bool(direction_unreliable),
+                "score": float(score),
+                "source": "broad_trajectory",
+            }
+        )
+
+    events.sort(key=lambda event: float(event["score"]), reverse=True)
+    selected: List[Dict[str, Any]] = []
+    pool_size = max(expected_serves * 4, expected_serves + 12)
+    for event in events:
+        if all(
+            abs(int(event["contact_frame"]) - int(existing["contact_frame"]))
+            >= min_gap_frames
+            for existing in selected
+        ):
+            selected.append(event)
+        if len(selected) >= pool_size:
+            break
+    selected.sort(key=lambda event: int(event["contact_frame"]))
+    return selected
+
+
 def detect_serve_candidates(
     video_path: str,
     expected_serves: Optional[int] = None,
+    detector: str = "yolo",
     model: str = "rjtp",
+    tracknet_weights: Optional[str] = None,
+    tracknet_device: str = "cpu",
     scale_factor: float = 0.001,
     conf_threshold: float = 0.20,
     frame_skip: int = 1,
@@ -77,13 +260,29 @@ def detect_serve_candidates(
     if frame_skip < 1:
         raise ValueError("frame_skip must be at least 1")
 
-    raw_detections, fps, _total_frames, estimated_scale = detect_ball_yolo(
-        video_path,
-        model_path=model,
-        conf_threshold=conf_threshold,
-        frame_skip=frame_skip,
-        start_frame=start_frame,
-    )
+    if detector == "yolo":
+        raw_detections, fps, _total_frames, estimated_scale = detect_ball_yolo(
+            video_path,
+            model_path=model,
+            conf_threshold=conf_threshold,
+            frame_skip=frame_skip,
+            start_frame=start_frame,
+        )
+    elif detector == "tracknetv2":
+        if not tracknet_weights:
+            raise ValueError("tracknet_weights is required when detector='tracknetv2'")
+        from serve_analyzer.tracknetv2 import detect_ball_tracknetv2
+
+        raw_detections, fps, _total_frames, estimated_scale = detect_ball_tracknetv2(
+            video_path,
+            weights_path=tracknet_weights,
+            conf_threshold=conf_threshold,
+            frame_skip=frame_skip,
+            start_frame=start_frame,
+            device=tracknet_device,
+        )
+    else:
+        raise ValueError(f"Unsupported detector: {detector}")
 
     positions = interpolate_missing_detections(raw_detections, max_gap=15)
     velocities = compute_frame_velocities(positions, fps)
@@ -134,6 +333,27 @@ def detect_serve_candidates(
         )
         for profile in detector_profiles
     ]
+    candidate_event_groups.append(
+        _detect_broad_trajectory_events(
+            positions,
+            velocities,
+            vert_velocities,
+            horiz_velocities,
+            fps,
+            expected,
+        )
+    )
+    candidate_event_groups.append(
+        _detect_broad_trajectory_events(
+            positions,
+            velocities,
+            vert_velocities,
+            horiz_velocities,
+            fps,
+            expected,
+            min_serve_gap_sec=1.0,
+        )
+    )
     candidate_events = _merge_candidate_events(candidate_event_groups, fps)
     max_merge_gap_frames = max(1, int(0.75 * fps))
     flattened_events = [event for events in candidate_event_groups for event in events]
@@ -183,20 +403,25 @@ def detect_serve_candidates(
                 "early_post_net_dy": float(event.get("early_post_net_dy", 0.0)),
             }
         )
-    return {"candidates": candidates, "positions": positions, "frame_skip": frame_skip}
+    return {
+        "candidates": candidates,
+        "positions": positions,
+        "frame_skip": frame_skip,
+        "detector": detector,
+    }
 
 
 def infer_serve_count(
     candidates: Sequence[Dict[str, Any]],
     min_rank_floor: float = 0.05,
-    relative_floor: float = 0.55,
+    relative_floor: float = 0.20,
 ) -> int:
     """Infer serve count from ranked candidates via quality threshold.
 
     Uses a combined quality threshold: a candidate must have rank >= both
     min_rank_floor (absolute) and relative_floor * top_rank (relative to best).
-    Among candidates passing the threshold, gap-based elbow detection further
-    refines the count if a clear quality drop exists.
+    Gap-based elbow detection further refines the count only when a very
+    clear quality cliff exists (gap > 3x mean gap and > 0.30).
     """
     if not candidates:
         return 0
@@ -207,14 +432,14 @@ def infer_serve_count(
     )
     ranks = [float(c.get("selector_rank", 0.0)) for c in ranked]
     top_rank = ranks[0]
-    # Combined floor: absolute minimum AND relative to best candidate
+    if top_rank < min_rank_floor:
+        return 0
     threshold = max(min_rank_floor, relative_floor * top_rank)
     above_threshold = [r for r in ranks if r >= threshold]
     if not above_threshold:
         return 0
     if len(above_threshold) <= 1:
         return len(above_threshold)
-    # Gap-based elbow refinement on threshold-passing candidates
     gaps = [
         above_threshold[i] - above_threshold[i + 1]
         for i in range(len(above_threshold) - 1)
@@ -224,7 +449,7 @@ def infer_serve_count(
     max_gap_idx = max(range(len(gaps)), key=lambda i: gaps[i])
     max_gap = gaps[max_gap_idx]
     mean_gap = sum(gaps) / len(gaps)
-    if mean_gap < 1e-9 or max_gap < 2.0 * mean_gap or max_gap < 0.20:
+    if mean_gap < 1e-9 or max_gap < 2.5 * mean_gap or max_gap < 0.25:
         return len(above_threshold)
     return max_gap_idx + 1
 
@@ -269,6 +494,14 @@ def select_serves(
         epd = float(c.get("early_post_downward_fraction", 0.0))
         epdy = float(c.get("early_post_net_dy", 0.0))
         if tr < 60 and td < 6 and epd > 0.70 and epdy > 45:
+            continue
+
+        after = float(c.get("frames_after_apex", 0.0))
+        if after <= 2.0 and drop_val > 100.0 and rf < 0.45 and epd > 0.70:
+            continue
+
+        support = int(c.get("support_count", 1))
+        if support <= 1 and td <= 6 and epd >= 0.90 and epdy > 100.0:
             continue
 
         filtered.append(c)
@@ -361,8 +594,19 @@ def select_serves(
             cv = float(candidate.get("contact_velocity", 0.0))
             drop_val_r = float(candidate.get("drop_after_apex", 0.0))
             faa_r = float(candidate.get("frames_after_apex", 0))
-            has_strong_toss = (uf > 0.5 and ruf > 0.5 and cv > 1000
-                               and drop_val_r > 100 and faa_r > 20)
+            toss_rise = float(candidate.get("toss_rise_px", 0.0))
+            toss_duration = int(candidate.get("toss_duration_frames", 0))
+            has_strong_toss = (
+                uf > 0.5 and ruf > 0.5 and cv > 1000 and drop_val_r > 100 and faa_r > 20
+            ) or (
+                uf > 0.5
+                and ruf > 0.5
+                and drop_val_r > 100
+                and cv > 600
+                and toss_rise > 500
+                and toss_duration >= 6
+                and rightward_frac >= 0.45
+            )
 
         # Leftward penalty — strong signal of rebound / camera shake.
         # Waived only for direction-unreliable WITH strong toss evidence
@@ -370,14 +614,25 @@ def select_serves(
         if candidate.get("direction_unreliable", False) and has_strong_toss:
             leftward_penalty = 0.0
         else:
-            leftward_penalty = _clip((-net_rightward) / 80.0) if net_rightward < -10.0 else 0.0
+            leftward_penalty = (
+                _clip((-net_rightward) / 80.0) if net_rightward < -10.0 else 0.0
+            )
 
-        # Contradictory-direction penalty: high rf but negative nrd.
+        # Contradictory-direction penalty: high rf but materially negative nrd.
+        # Small negative net displacement can happen when interpolation loses the
+        # ball briefly despite mostly rightward frame-to-frame motion.
         # Not applied to direction-unreliable with strong toss evidence.
-        contradictory_penalty = 1.0 if (
-            rightward_frac >= 0.5 and net_rightward <= -10
-            and not (candidate.get("direction_unreliable", False) and has_strong_toss)
-        ) else 0.0
+        contradictory_penalty = (
+            1.0
+            if (
+                rightward_frac >= 0.5
+                and net_rightward <= -80
+                and not (
+                    candidate.get("direction_unreliable", False) and has_strong_toss
+                )
+            )
+            else 0.0
+        )
 
         # Recovery bonus: compensate for ~0.30 weight lost from missing
         # rightward metrics when tracker lost ball post-contact.
@@ -424,7 +679,7 @@ def select_serves(
             recent_supported = [
                 previous
                 for previous in suppressed
-                if 0.0 < current_time - float(previous["contact_time_sec"]) <= 8.5
+                if 0.0 < current_time - float(previous["contact_time_sec"]) <= 2.5
                 and int(previous.get("support_count", 1)) >= 2
             ]
             for index, first in enumerate(recent_supported):
@@ -475,7 +730,10 @@ def detect_serve_attempts(
     timestamps_file: str,
     expected_serves: Optional[int] = None,
     tolerance_sec: float = 3.0,
+    detector: str = "yolo",
     model: str = "rjtp",
+    tracknet_weights: Optional[str] = None,
+    tracknet_device: str = "cpu",
     scale_factor: float = 0.001,
     conf_threshold: float = 0.20,
     frame_skip: int = 1,
@@ -489,15 +747,19 @@ def detect_serve_attempts(
     if expected < 1:
         raise ValueError("expected_serves must be at least 1")
 
-    candidates = detect_serve_candidates(
+    detection_result = detect_serve_candidates(
         video_path,
         expected_serves=expected,
+        detector=detector,
         model=model,
+        tracknet_weights=tracknet_weights,
+        tracknet_device=tracknet_device,
         scale_factor=scale_factor,
         conf_threshold=conf_threshold,
         frame_skip=frame_skip,
         start_frame=start_frame,
     )
+    candidates = detection_result["candidates"]
 
     summary = summarize_serve_attempts(candidates, target_times, tolerance_sec)
     summary.update(
@@ -543,9 +805,24 @@ Examples:
         help="Max target-vs-detected delta for a match in seconds (default: 3.0)",
     )
     parser.add_argument(
+        "--detector",
+        choices=("yolo", "tracknetv2"),
+        default="yolo",
+        help="Ball detector backend (default: yolo)",
+    )
+    parser.add_argument(
         "--model",
         default="rjtp",
         help="Model path or 'rjtp' for tennis-ball model (default: rjtp)",
+    )
+    parser.add_argument(
+        "--tracknet-weights",
+        help="Path to TrackNetV2 PyTorch weights when --detector tracknetv2 is used",
+    )
+    parser.add_argument(
+        "--tracknet-device",
+        default="cpu",
+        help="Torch device for TrackNetV2 inference (default: cpu)",
     )
     parser.add_argument(
         "--scale-factor",
@@ -586,7 +863,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             args.timestamps_file,
             expected_serves=args.expected_serves,
             tolerance_sec=args.tolerance_sec,
+            detector=args.detector,
             model=args.model,
+            tracknet_weights=args.tracknet_weights,
+            tracknet_device=args.tracknet_device,
             scale_factor=args.scale_factor,
             conf_threshold=args.conf,
             frame_skip=args.frame_skip,
@@ -599,23 +879,32 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         candidates = detect_serve_candidates(
             args.video,
             expected_serves=pool_size,
+            detector=args.detector,
             model=args.model,
+            tracknet_weights=args.tracknet_weights,
+            tracknet_device=args.tracknet_device,
             scale_factor=args.scale_factor,
             conf_threshold=args.conf,
             frame_skip=args.frame_skip,
             start_frame=args.start_frame,
         )
-        selected = select_serves(candidates, expected_serves=args.expected_serves)
+        candidate_records = (
+            candidates["candidates"] if isinstance(candidates, dict) else candidates
+        )
+        selected = select_serves(
+            candidate_records, expected_serves=args.expected_serves
+        )
         inferred_count = len(selected) if count_inferred else None
         results = {
             "video_path": str(args.video),
             "expected_serves": args.expected_serves,
+            "detector": args.detector,
             "count_inferred": bool(count_inferred),
             "inferred_count": int(inferred_count)
             if inferred_count is not None
             else None,
             "selected_serves": selected,
-            "candidates": candidates,
+            "candidates": candidate_records,
         }
 
     if args.output:

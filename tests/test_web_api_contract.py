@@ -1,12 +1,16 @@
 """Contract tests for web backend API."""
 
 import io
+import os
+import shutil
+import tempfile
 import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from web.backend.app import app
+from web.backend.paths import get_annotation_session_dir
 from web.backend.state import reset_state
 
 
@@ -35,7 +39,13 @@ class TestWebApiContract(unittest.TestCase):
         """Concurrent POST /api/analyze returns 409."""
         # Mock the analysis thread target to prevent state from changing.
         # This ensures the second POST deterministically sees ANALYZING state.
-        with patch("web.backend.app._run_analysis_thread"):
+        with (
+            patch("web.backend.app._run_analysis_thread"),
+            patch(
+                "web.backend.services.analysis_service.estimate_analysis_duration",
+                return_value=1.0,
+            ),
+        ):
             fake_video = io.BytesIO(b"fake video data")
             response1 = self.client.post(
                 "/api/analyze",
@@ -52,11 +62,18 @@ class TestWebApiContract(unittest.TestCase):
 
     def test_post_reset(self) -> None:
         """POST /api/job/reset returns to idle and cleans artifacts."""
-        fake_video = io.BytesIO(b"fake video data")
-        self.client.post(
-            "/api/analyze",
-            files={"video": ("test.mp4", fake_video, "video/mp4")},
-        )
+        with (
+            patch("web.backend.app._run_analysis_thread"),
+            patch(
+                "web.backend.services.analysis_service.estimate_analysis_duration",
+                return_value=1.0,
+            ),
+        ):
+            fake_video = io.BytesIO(b"fake video data")
+            self.client.post(
+                "/api/analyze",
+                files={"video": ("test.mp4", fake_video, "video/mp4")},
+            )
 
         response = self.client.post("/api/job/reset")
         self.assertEqual(response.status_code, 200)
@@ -64,6 +81,30 @@ class TestWebApiContract(unittest.TestCase):
 
         job = self.client.get("/api/job").json()
         self.assertEqual(job["status"], "idle")
+
+    def test_post_reset_preserves_annotation_sessions(self) -> None:
+        """POST /api/job/reset does not delete annotation artifacts."""
+        with (
+            tempfile.TemporaryDirectory() as analysis_tmp,
+            patch.dict(
+                os.environ,
+                {"SERVE_ANALYZER_TEMP": analysis_tmp},
+                clear=False,
+            ),
+        ):
+            os.environ.pop("SERVE_ANALYZER_ANNOTATION_DIR", None)
+            session_dir = get_annotation_session_dir("persist")
+            marker_path = os.path.join(session_dir, "session.json")
+            with open(marker_path, "w", encoding="utf-8") as marker:
+                marker.write("{}")
+
+            response = self.client.post("/api/job/reset")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(os.path.isfile(marker_path))
+            job = self.client.get("/api/job").json()
+            self.assertEqual(job["status"], "idle")
+            shutil.rmtree(session_dir, ignore_errors=True)
 
     def test_post_analyze_rejects_non_video(self) -> None:
         """POST /api/analyze with a text file returns 400."""
@@ -73,6 +114,27 @@ class TestWebApiContract(unittest.TestCase):
             files={"video": ("test.txt", fake_text, "text/plain")},
         )
         self.assertEqual(response.status_code, 400)
+
+    @patch("web.backend.app.annotation_service.create_annotation_session")
+    def test_post_annotation_session_returns_session_without_mutating_job(
+        self, mock_create
+    ) -> None:
+        """POST /api/annotation/sessions creates a separate annotation session."""
+        mock_create.return_value = {"id": "abc123", "frames": [], "progress": {}}
+
+        fake_video = io.BytesIO(b"fake video data")
+        response = self.client.post(
+            "/api/annotation/sessions?max_frames=12&prelabel=false",
+            files={"video": ("serve.mp4", fake_video, "video/mp4")},
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["session"]["id"], "abc123")
+        _, _, kwargs = mock_create.mock_calls[0]
+        self.assertEqual(kwargs["max_frames"], 12)
+        self.assertFalse(kwargs["prelabel"])
+        job = self.client.get("/api/job").json()
+        self.assertEqual(job["status"], "idle")
 
     def test_get_clip_path_traversal(self) -> None:
         """GET /clips with path traversal returns 400."""

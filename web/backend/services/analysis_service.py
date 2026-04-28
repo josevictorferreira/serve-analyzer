@@ -4,6 +4,7 @@ Imports serve_analyzer.serve_attempts directly instead of shelling out,
 and normalizes the result into a stable job payload.
 """
 
+import os
 from typing import Any, Callable, Dict, List, Optional
 
 from serve_analyzer.analysis import get_video_info
@@ -13,10 +14,9 @@ from serve_analyzer.serve_attempts import (
 )
 
 
-
 def _recommended_frame_skip(video_path: str) -> int:
     """Choose frame_skip based on video resolution and length.
-    
+
     Rules (web adapter only):
         - 4K / very long videos -> frame_skip=4
         - 1080p / long videos   -> frame_skip=2
@@ -26,7 +26,7 @@ def _recommended_frame_skip(video_path: str) -> int:
     width = info.get("width", 0)
     height = info.get("height", 0)
     frame_count = info.get("frame_count", 0)
-    
+
     if width >= 3000 or height >= 1700 or frame_count >= 3500:
         return 4
     if width >= 1900 or height >= 1000 or frame_count >= 1800:
@@ -35,6 +35,20 @@ def _recommended_frame_skip(video_path: str) -> int:
 
 
 Phases = ["analyzing", "clipping", "done"]
+
+
+def _detector_config() -> Dict[str, Optional[str]]:
+    """Read detector backend settings from environment variables."""
+    detector = os.environ.get("SERVE_ANALYZER_DETECTOR", "yolo").lower()
+    if detector not in {"yolo", "tracknetv2"}:
+        raise ValueError(f"Unsupported detector: {detector}")
+    return {
+        "detector": detector,
+        "model": os.environ.get("SERVE_ANALYZER_MODEL", "rjtp"),
+        "tracknet_weights": os.environ.get("SERVE_ANALYZER_TRACKNET_WEIGHTS"),
+        "tracknet_device": os.environ.get("SERVE_ANALYZER_TRACKNET_DEVICE", "cpu"),
+    }
+
 
 def estimate_analysis_duration(video_path: str) -> float:
     """Estimate total analysis time in seconds based on video metadata.
@@ -62,8 +76,9 @@ def estimate_analysis_duration(video_path: str) -> float:
         frame_skip = 1
 
     sampled_frames = max(1, frame_count // frame_skip)
-    # ~0.3 sec per sampled frame (conservative YOLO + HSV tracking estimate)
-    return float(sampled_frames * 0.3)
+    detector = os.environ.get("SERVE_ANALYZER_DETECTOR", "yolo").lower()
+    seconds_per_sample = 0.7 if detector == "tracknetv2" else 0.3
+    return float(sampled_frames * seconds_per_sample)
 
 
 def run_analysis(
@@ -100,10 +115,15 @@ def run_analysis(
     # In autonomous mode (expected_serves=None) pass None through
     # so detector uses its own default pool expansion logic.
     pool_size = expected_serves
+    detector_config = _detector_config()
 
     detection_result = detect_serve_candidates(
         video_path,
         expected_serves=pool_size,
+        detector=detector_config["detector"] or "yolo",
+        model=detector_config["model"] or "rjtp",
+        tracknet_weights=detector_config["tracknet_weights"],
+        tracknet_device=detector_config["tracknet_device"] or "cpu",
         frame_skip=frame_skip,
     )
     candidates: List[Dict[str, Any]] = detection_result["candidates"]
@@ -127,6 +147,7 @@ def run_analysis(
         "expected_serves": expected_serves,
         "count_inferred": bool(count_inferred),
         "inferred_count": inferred_count,
+        "detector": detector_config["detector"],
         "selected_serves": selected,
         "candidates": candidates,
         "positions": positions,

@@ -26,8 +26,8 @@ _job_state: Dict[str, Any] = {
     "candidates": [],
     "count_inferred": None,
     "inferred_count": None,
+    "detector": None,
     "estimated_duration_sec": None,
-
 }
 
 _state_lock = threading.Lock()
@@ -59,8 +59,8 @@ def reset_state() -> None:
             "candidates": [],
             "count_inferred": None,
             "inferred_count": None,
+            "detector": None,
             "estimated_duration_sec": None,
-
         }
 
 

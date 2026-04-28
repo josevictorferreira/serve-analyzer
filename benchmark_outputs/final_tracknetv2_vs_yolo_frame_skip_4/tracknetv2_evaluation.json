@@ -1,0 +1,113 @@
+{
+  "target_count": 8,
+  "candidate_count": 0,
+  "matched_count": 0,
+  "unmatched_candidate_count": 0,
+  "tolerance_sec": 3.0,
+  "attempts": [
+    {
+      "serve_number": 1,
+      "target_time_sec": 13.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    },
+    {
+      "serve_number": 2,
+      "target_time_sec": 19.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    },
+    {
+      "serve_number": 3,
+      "target_time_sec": 28.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    },
+    {
+      "serve_number": 4,
+      "target_time_sec": 32.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    },
+    {
+      "serve_number": 5,
+      "target_time_sec": 37.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    },
+    {
+      "serve_number": 6,
+      "target_time_sec": 48.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    },
+    {
+      "serve_number": 7,
+      "target_time_sec": 52.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    },
+    {
+      "serve_number": 8,
+      "target_time_sec": 62.0,
+      "candidate_index": null,
+      "detected_time_sec": null,
+      "delta_sec": null,
+      "matched": false,
+      "post_contact_max_kmh": null,
+      "post_contact_mean_kmh": null,
+      "post_contact_max_mps": null,
+      "post_contact_mean_mps": null
+    }
+  ],
+  "unmatched_candidates": [],
+  "detector": "tracknetv2",
+  "detection_json": "benchmark_outputs/final_tracknetv2_vs_yolo_frame_skip_4/tracknetv2_detections.json",
+  "runtime_sec": 695.1984934459997,
+  "selected_count": 0,
+  "candidate_pool_count": 0,
+  "mean_abs_delta_sec": null,
+  "max_abs_delta_sec": null
+}
