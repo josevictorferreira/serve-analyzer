@@ -133,6 +133,7 @@ def _run_analysis_thread(video_path: str) -> None:
             video_path,
             selected_serves,
             positions=result["positions"],
+            overlay_positions=result.get("raw_positions"),
             detection_frame_skip=result["detection_frame_skip"],
         )
         set_state(

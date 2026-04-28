@@ -74,7 +74,7 @@
             echo "  make help              # show available project commands"
             echo ""
             echo "The default pre-label model is:"
-            echo "  annotation_exports/4f6e0258d09c/training-runs/rjtpp-finetune-1280/weights/best.pt"
+            echo "  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt"
             echo ""
             echo "Override pre-label model with:"
             echo "  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize"

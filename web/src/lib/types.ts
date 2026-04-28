@@ -17,6 +17,23 @@ export interface ClipMeta {
   serve_index: number;
   contact_time_sec: number;
   duration: number;
+  fps?: number;
+  width?: number;
+  height?: number;
+  start_frame?: number;
+  end_frame?: number;
+  contact_frame?: number;
+  contact_clip_time_sec?: number;
+  velocity_kmh?: number | null;
+  mean_velocity_kmh?: number | null;
+  ball_positions?: BallPosition[];
+}
+
+export interface BallPosition {
+  frame_number: number;
+  clip_time_sec: number;
+  x: number;
+  y: number;
 }
 
 export interface JobStatus {

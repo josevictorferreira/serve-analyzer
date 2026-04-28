@@ -93,7 +93,7 @@ class TestClipServiceUnit(unittest.TestCase):
 
             shutil.rmtree(self.temp_dir)
 
-    def _run_with_fakes(self, serves):
+    def _run_with_fakes(self, serves, overlay_positions=None):
         fake_capture = _FakeCapture("/tmp/video.mp4")
         positions = [(320.0, 240.0)] * 900
         with (
@@ -115,6 +115,7 @@ class TestClipServiceUnit(unittest.TestCase):
                 serves,
                 positions,
                 detection_frame_skip=1,
+                overlay_positions=overlay_positions,
             )
         return result, fake_capture
 
@@ -173,6 +174,37 @@ class TestClipServiceUnit(unittest.TestCase):
         serves = [{"contact_frame": 800, "contact_time_sec": 42.5}]
         result, _ = self._run_with_fakes(serves)
         self.assertEqual(result[0]["contact_time_sec"], 42.5)
+
+    def test_overlay_metadata_uses_only_detected_positions(self):
+        """Ball overlay metadata is present only for frames with raw detections."""
+        serves = [
+            {
+                "contact_frame": 300,
+                "contact_time_sec": 10.0,
+                "post_contact_max_kmh": 180.0,
+                "post_contact_mean_kmh": 150.0,
+            }
+        ]
+        overlay_positions = [None] * 900
+        overlay_positions[233] = (320.0, 240.0)
+        overlay_positions[235] = (100.0, 200.0)
+
+        result, _ = self._run_with_fakes(serves, overlay_positions=overlay_positions)
+
+        self.assertEqual(result[0]["velocity_kmh"], 180.0)
+        self.assertEqual(result[0]["mean_velocity_kmh"], 150.0)
+        self.assertEqual(result[0]["width"], 640)
+        self.assertEqual(result[0]["height"], 480)
+        self.assertEqual(result[0]["contact_frame"], 300)
+        self.assertEqual(result[0]["start_frame"], 233)
+        self.assertEqual(result[0]["contact_clip_time_sec"], 2.2333)
+        self.assertEqual(
+            result[0]["ball_positions"],
+            [
+                {"frame_number": 233, "clip_time_sec": 0.0, "x": 320.0, "y": 240.0},
+                {"frame_number": 235, "clip_time_sec": 0.0667, "x": 100.0, "y": 200.0},
+            ],
+        )
 
 
 class TestClipServiceIntegration(unittest.TestCase):

@@ -406,6 +406,7 @@ def detect_serve_candidates(
     return {
         "candidates": candidates,
         "positions": positions,
+        "raw_positions": raw_detections,
         "frame_skip": frame_skip,
         "detector": detector,
     }

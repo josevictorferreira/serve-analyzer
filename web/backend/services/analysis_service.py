@@ -151,6 +151,7 @@ def run_analysis(
         "selected_serves": selected,
         "candidates": candidates,
         "positions": positions,
+        "raw_positions": detection_result.get("raw_positions", positions),
         "detection_frame_skip": detection_frame_skip,
     }
 

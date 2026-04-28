@@ -1,8 +1,8 @@
-"""Generate short MP4 clips for selected serves with ball overlay.
+"""Generate short clean MP4 clips for selected serves.
 
-Each clip is a temporal slice around the serve contact time, with a
-green circle + crosshair drawn on the detected ball position for every
-frame. Positions are interpolated for frames between sampled detections.
+Each clip is a temporal slice around the serve contact time. Ball overlay
+metadata is returned separately so the browser can draw accurate markers only
+when a detector produced a position for the current video frame.
 """
 
 import os
@@ -10,70 +10,30 @@ import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
-import numpy as np
-
 from web.backend.paths import get_clips_dir
 
 
-def _interpolate_position(
+def _position_at_frame(
     frame_num: int,
     positions: List[Optional[Tuple[float, float]]],
-    frame_skip: int,
 ) -> Optional[Tuple[float, float]]:
-    """Get ball position for any frame via linear interpolation.
-
-    Positions are at frame_skip intervals. For in-between frames,
-    linearly interpolate between the two nearest sampled positions.
+    """Return the detector position for one source frame, if present.
 
     Parameters
     ----------
     frame_num:
         Original video frame number.
     positions:
-        List of (x, y) tuples, one per sampled frame. May contain None.
-    frame_skip:
-        Sampling interval used during detection.
+        List of (x, y) tuples keyed by original frame number. May contain None.
 
     Returns
     -------
     tuple or None
-        Interpolated (x, y) position, or None if out of range.
+        Detector (x, y) position, or None if the ball was not detected.
     """
-    float_idx = frame_num / frame_skip
-    lo = int(float_idx)
-    hi = lo + 1
-
-    if lo < 0 or lo >= len(positions):
+    if frame_num < 0 or frame_num >= len(positions):
         return None
-
-    pos_lo = positions[lo]
-    if pos_lo is None:
-        return None
-
-    if hi >= len(positions):
-        return pos_lo
-
-    pos_hi = positions[hi]
-    if pos_hi is None:
-        return pos_lo
-
-    frac = float_idx - lo
-    x = pos_lo[0] * (1 - frac) + pos_hi[0] * frac
-    y = pos_lo[1] * (1 - frac) + pos_hi[1] * frac
-    return (x, y)
-
-
-def _draw_ball_marker(frame: np.ndarray, x: float, y: float) -> None:
-    """Draw green circle + crosshair on ball position (in-place)."""
-    cx, cy = int(round(x)), int(round(y))
-    h, w = frame.shape[:2]
-    if cx < 0 or cx >= w or cy < 0 or cy >= h:
-        return
-    # Green circle (radius 12, thickness 2)
-    cv2.circle(frame, (cx, cy), 12, (0, 255, 0), 2)
-    # Crosshair lines (20px arms)
-    cv2.line(frame, (cx - 20, cy), (cx + 20, cy), (0, 255, 0), 1)
-    cv2.line(frame, (cx, cy - 20), (cx, cy + 20), (0, 255, 0), 1)
+    return positions[frame_num]
 
 
 def generate_clips(
@@ -81,13 +41,14 @@ def generate_clips(
     selected_serves: List[Dict[str, Any]],
     positions: List[Optional[Tuple[float, float]]],
     detection_frame_skip: int,
+    overlay_positions: Optional[List[Optional[Tuple[float, float]]]] = None,
 ) -> List[Dict[str, Any]]:
-    """Create one MP4 clip per selected serve with ball overlay.
+    """Create one clean MP4 clip per selected serve with overlay metadata.
 
     The clip window is deterministic: ``max(contact_frame - 2.25*fps, 0)``
-    to ``contact_frame + 1.75*fps``. Each frame has a green circle + crosshair
-    drawn at the detected/interpolated ball position. Output is scaled to
-    480px width.
+    to ``contact_frame + 1.75*fps``. Output is scaled to at most 960px width.
+    Ball positions are returned in clip pixel coordinates instead of being
+    burned into the video.
 
     Parameters
     ----------
@@ -96,9 +57,12 @@ def generate_clips(
     selected_serves:
         List of serve dicts with ``contact_frame`` and ``contact_time_sec``.
     positions:
-        Full positions array from detection (one entry per sampled frame).
+        Full interpolated positions array from detection.
     detection_frame_skip:
-        Frame skip used during detection (for position interpolation).
+        Frame skip used during detection.
+    overlay_positions:
+        Raw detector positions keyed by source frame number. When omitted,
+        ``positions`` is used as a fallback.
 
     Returns
     -------
@@ -117,8 +81,8 @@ def generate_clips(
     orig_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    # Output dimensions: 480px wide, preserve aspect ratio
-    out_width = 480
+    # Output dimensions: large enough for review, preserve aspect ratio.
+    out_width = min(orig_width, 960)
     scale = out_width / orig_width
     out_height = int(orig_height * scale)
     # Ensure even height for codec compatibility
@@ -131,6 +95,10 @@ def generate_clips(
         start_frame = max(0, contact_frame - int(2.25 * fps))
         end_frame = min(total_frames, contact_frame + int(1.75 * fps))
         duration = round((end_frame - start_frame) / fps, 3)
+        overlay_source = (
+            overlay_positions if overlay_positions is not None else positions
+        )
+        overlay_points: List[Dict[str, float | int]] = []
 
         filename = f"serve-{idx:02d}.mp4"
         output_path = os.path.join(clips_dir, filename)
@@ -148,13 +116,19 @@ def generate_clips(
             if scale != 1.0:
                 frame = cv2.resize(frame, (out_width, out_height))
 
-            # Draw ball marker if position available
-            ball_pos = _interpolate_position(frame_num, positions, detection_frame_skip)
+            ball_pos = _position_at_frame(frame_num, overlay_source)
             if ball_pos is not None:
-                # Scale position to match resized frame
                 scaled_x = ball_pos[0] * scale
                 scaled_y = ball_pos[1] * scale
-                _draw_ball_marker(frame, scaled_x, scaled_y)
+                if 0 <= scaled_x < out_width and 0 <= scaled_y < out_height:
+                    overlay_points.append(
+                        {
+                            "frame_number": int(frame_num),
+                            "clip_time_sec": round((frame_num - start_frame) / fps, 4),
+                            "x": round(float(scaled_x), 2),
+                            "y": round(float(scaled_y), 2),
+                        }
+                    )
 
             writer.write(frame)
 
@@ -193,6 +167,24 @@ def generate_clips(
                 "serve_index": idx,
                 "contact_time_sec": contact_time_sec,
                 "duration": duration,
+                "fps": float(fps),
+                "width": int(out_width),
+                "height": int(out_height),
+                "start_frame": int(start_frame),
+                "end_frame": int(end_frame),
+                "contact_frame": int(contact_frame),
+                "contact_clip_time_sec": round((contact_frame - start_frame) / fps, 4),
+                "velocity_kmh": (
+                    float(serve["post_contact_max_kmh"])
+                    if serve.get("post_contact_max_kmh") is not None
+                    else None
+                ),
+                "mean_velocity_kmh": (
+                    float(serve["post_contact_mean_kmh"])
+                    if serve.get("post_contact_mean_kmh") is not None
+                    else None
+                ),
+                "ball_positions": overlay_points,
             }
         )
 

@@ -1,6 +1,6 @@
-FINE_TUNED_MODEL := $(CURDIR)/annotation_exports/4f6e0258d09c/training-runs/rjtpp-finetune-1280/weights/best.pt
+FINE_TUNED_MODEL := $(CURDIR)/annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
 
-.PHONY: help analyze-video categorize dev
+.PHONY: help analyze-video categorize dev gpu-cap
 
 help:
 	@printf '%s\n' \
@@ -10,7 +10,7 @@ help:
 		'  make analyze-video     Run multi-serve analysis on video.mov' \
 		'' \
 		'Default categorization model:' \
-		'  annotation_exports/4f6e0258d09c/training-runs/rjtpp-finetune-1280/weights/best.pt' \
+		'  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt' \
 		'' \
 		'RJTPP pre-label options for categorization:' \
 		'  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize' \
@@ -50,9 +50,10 @@ categorize:
 		status=$$?; \
 		kill $$backend_pid $$frontend_pid 2>/dev/null || true; \
 		exit $$status'
+
+gpu-cap:
 	echo manual | sudo tee /sys/class/drm/card0/device/power_dpm_force_performance_level
 	sudo rocm-smi --setpoweroverdrive 283
 	sudo rocm-smi --setsrange 500 2400
 	sudo rocm-smi --showclocks
 	sudo rocm-smi --showpower
-gpu-cap:
