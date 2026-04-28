@@ -36,6 +36,7 @@
             pythonEnv
             pkgs.ffmpeg
             pkgs.nodejs
+            pkgs.gnumake
             pkgs.zlib
             pkgs.stdenv.cc.cc.lib
           ];
@@ -66,6 +67,19 @@
               echo "Installing roboflow..."
               pip install --quiet roboflow
             fi
+            echo ""
+            echo "Serve Analyzer dev shell"
+            echo "  make dev               # start browser annotation with fine-tuned model if available"
+            echo "  make categorize        # same as make dev"
+            echo "  make help              # show available project commands"
+            echo ""
+            echo "The default pre-label model is:"
+            echo "  annotation_exports/4f6e0258d09c/training-runs/rjtpp-finetune-1280/weights/best.pt"
+            echo ""
+            echo "Override pre-label model with:"
+            echo "  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize"
+            echo "  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize"
+            echo ""
           '';
         };
     in

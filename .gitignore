@@ -34,6 +34,9 @@ __pycache__/
 # Frame samples
 frame_samples/
 
+# Local annotation/dataset exports from personal videos
+annotation_exports/
+
 # Cloned research repos (not project code)
 Color-Based-Ball-Tracking-With-OpenCV/
 OpenCV-Python-Tutorial/

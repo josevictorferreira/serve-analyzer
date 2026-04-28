@@ -17,8 +17,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:8001',
-      '/clips': 'http://localhost:8001',
+      '/api': 'http://127.0.0.1:8000',
+      '/clips': 'http://127.0.0.1:8000',
     }
   },
   test: {
