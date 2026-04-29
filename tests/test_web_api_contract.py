@@ -34,6 +34,17 @@ class TestWebApiContract(unittest.TestCase):
         self.assertEqual(data["candidates"], [])
         self.assertIsNone(data["count_inferred"])
         self.assertIsNone(data["inferred_count"])
+        self.assertIsNone(data["detector_version"])
+
+    def test_get_detectors_lists_versions(self) -> None:
+        """GET /api/detectors returns detector-version metadata."""
+        response = self.client.get("/api/detectors")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        versions = {detector["version"] for detector in data["detectors"]}
+        self.assertIn("v1", versions)
+        self.assertIn("v2", versions)
+        self.assertIn(data["default_version"], versions)
 
     def test_post_analyze_conflict(self) -> None:
         """Concurrent POST /api/analyze returns 409."""
@@ -114,6 +125,19 @@ class TestWebApiContract(unittest.TestCase):
             files={"video": ("test.txt", fake_text, "text/plain")},
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_post_analyze_rejects_unknown_detector_version(self) -> None:
+        """POST /api/analyze validates detector version before mutating state."""
+        fake_video = io.BytesIO(b"fake video data")
+        response = self.client.post(
+            "/api/analyze",
+            data={"detector_version": "v99"},
+            files={"video": ("test.mp4", fake_video, "video/mp4")},
+        )
+        self.assertEqual(response.status_code, 400)
+
+        job = self.client.get("/api/job").json()
+        self.assertEqual(job["status"], "idle")
 
     @patch("web.backend.app.annotation_service.create_annotation_session")
     def test_post_annotation_session_returns_session_without_mutating_job(

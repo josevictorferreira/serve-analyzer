@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from serve_analyzer.serve_attempts import detect_serve_candidates, select_serves
+from serve_analyzer.serve_attempts_v2 import (
+    detect_serve_candidates_v2,
+    select_serves_v2,
+)
 from serve_analyzer.serve_evaluation import (
     load_target_timestamps,
     summarize_serve_attempts,
@@ -34,6 +38,17 @@ def _detector_specs(args: argparse.Namespace) -> List[Dict[str, Any]]:
             "conf_threshold": args.conf,
         }
     ]
+    if args.include_v2:
+        specs.append(
+            {
+                "name": "v2",
+                "detector": "v2",
+                "model": args.model,
+                "tracknet_weights": None,
+                "tracknet_device": args.tracknet_device,
+                "conf_threshold": args.conf,
+            }
+        )
     if args.tracknet_weights:
         specs.append(
             {
@@ -57,22 +72,36 @@ def run_benchmark(args: argparse.Namespace) -> Dict[str, Any]:
 
     for spec in _detector_specs(args):
         started = time.perf_counter()
-        detection_result = detect_serve_candidates(
-            args.video,
-            expected_serves=expected_serves,
-            detector=spec["detector"],
-            model=spec["model"],
-            tracknet_weights=spec["tracknet_weights"],
-            tracknet_device=spec["tracknet_device"],
-            scale_factor=args.scale_factor,
-            conf_threshold=spec["conf_threshold"],
-            frame_skip=args.frame_skip,
-            start_frame=args.start_frame,
-        )
+        if spec["detector"] == "v2":
+            detection_result = detect_serve_candidates_v2(
+                args.video,
+                expected_serves=expected_serves,
+                model=spec["model"],
+                scale_factor=args.scale_factor,
+                conf_threshold=spec["conf_threshold"],
+                frame_skip=args.frame_skip,
+                start_frame=args.start_frame,
+            )
+        else:
+            detection_result = detect_serve_candidates(
+                args.video,
+                expected_serves=expected_serves,
+                detector=spec["detector"],
+                model=spec["model"],
+                tracknet_weights=spec["tracknet_weights"],
+                tracknet_device=spec["tracknet_device"],
+                scale_factor=args.scale_factor,
+                conf_threshold=spec["conf_threshold"],
+                frame_skip=args.frame_skip,
+                start_frame=args.start_frame,
+            )
         runtime_sec = time.perf_counter() - started
 
         candidates = detection_result["candidates"]
-        selected = select_serves(candidates, expected_serves=expected_serves)
+        if spec["detector"] == "v2":
+            selected = select_serves_v2(candidates, expected_serves=expected_serves)
+        else:
+            selected = select_serves(candidates, expected_serves=expected_serves)
         detection_payload = {
             "video_path": str(args.video),
             "detector": spec["detector"],
@@ -163,6 +192,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--tracknet-weights",
         help="TrackNetV2 weights path; omit to benchmark YOLO only",
+    )
+    parser.add_argument(
+        "--include-v2",
+        action="store_true",
+        help="Also run the separated v2 fusion detector",
     )
     parser.add_argument(
         "--tracknet-device", default="cpu", help="Torch device for TrackNetV2"

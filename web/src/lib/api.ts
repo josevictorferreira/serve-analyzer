@@ -4,6 +4,7 @@ import type {
   AnnotationExport,
   AnnotationSession,
   AnnotationSessionSummary,
+  DetectorVersionsResponse,
   JobStatus,
 } from './types';
 
@@ -35,9 +36,18 @@ export async function resetJob(): Promise<void> {
   }
 }
 
+export async function listDetectorVersions(): Promise<DetectorVersionsResponse> {
+  const response = await fetch('/api/detectors');
+  if (!response.ok) {
+    throw new Error('Failed to fetch detector versions');
+  }
+  return response.json();
+}
+
 export async function analyzeVideoWithProgress(
   file: File,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number) => void,
+  detectorVersion?: string
 ): Promise<void> {
   if (!isValidVideoFile(file)) {
     throw new Error('Please select a valid video file.');
@@ -47,6 +57,9 @@ export async function analyzeVideoWithProgress(
     const xhr = new XMLHttpRequest();
     const formData = new FormData();
     formData.append('video', file);
+    if (detectorVersion) {
+      formData.append('detector_version', detectorVersion);
+    }
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {

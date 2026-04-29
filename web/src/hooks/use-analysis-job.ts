@@ -95,7 +95,7 @@ export function useAnalysisJob() {
     pollIntervalRef.current = setInterval(poll, 2000);
   }, [poll, stopPolling]);
 
-  const upload = useCallback(async (file: File) => {
+  const upload = useCallback(async (file: File, detectorVersion?: string) => {
     setIsUploading(true);
     setPhase('uploading');
     setProgress(0);
@@ -105,7 +105,11 @@ export function useAnalysisJob() {
     setAnalysisProgress(0);
 
     try {
-      await analyzeVideoWithProgress(file, (p) => setProgress(p));
+      if (detectorVersion) {
+        await analyzeVideoWithProgress(file, (p) => setProgress(p), detectorVersion);
+      } else {
+        await analyzeVideoWithProgress(file, (p) => setProgress(p));
+      }
       setIsUploading(false);
       setPhase('analyzing');
       startPolling();

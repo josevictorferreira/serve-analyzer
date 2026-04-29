@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import App from './App'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAnalysisJob } from './hooks/use-analysis-job'
-import { listAnnotationSessions } from '@/lib/api'
+import { listAnnotationSessions, listDetectorVersions } from '@/lib/api'
 
 vi.mock('./hooks/use-analysis-job', () => ({
   useAnalysisJob: vi.fn(),
@@ -10,6 +10,7 @@ vi.mock('./hooks/use-analysis-job', () => ({
 
 vi.mock('@/lib/api', () => ({
   listAnnotationSessions: vi.fn(),
+  listDetectorVersions: vi.fn(),
   getAnnotationSession: vi.fn(),
   createAnnotationSessionWithProgress: vi.fn(),
   reviewAnnotationFrame: vi.fn(),
@@ -33,6 +34,21 @@ describe('App', () => {
       analysisProgress: 0,
     })
     vi.mocked(listAnnotationSessions).mockResolvedValue([])
+    vi.mocked(listDetectorVersions).mockResolvedValue({
+      detectors: [
+        {
+          version: 'v1',
+          label: 'V1 baseline',
+          description: 'Existing candidate generator and selector.',
+        },
+        {
+          version: 'v2',
+          label: 'V2 continuity refinement',
+          description: 'Continuity, history, and motion-cue refinement.',
+        },
+      ],
+      default_version: 'v1',
+    })
   })
 
   it('renders the header title', () => {

@@ -2,10 +2,14 @@ import React, { useCallback, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { DetectorVersionInfo } from "@/lib/types";
 
 interface UploadDropzoneProps {
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File, detectorVersion?: string) => void;
   disabled?: boolean;
+  detectorVersions?: DetectorVersionInfo[];
+  selectedDetectorVersion?: string;
+  onDetectorVersionChange?: (version: string) => void;
 }
 
 const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.avi', '.webm', '.mkv'];
@@ -19,7 +23,13 @@ function isAcceptedVideoFile(file: File): boolean {
   return VIDEO_EXTENSIONS.includes(ext);
 }
 
-export function UploadDropzone({ onFileSelect, disabled }: UploadDropzoneProps) {
+export function UploadDropzone({
+  onFileSelect,
+  disabled,
+  detectorVersions,
+  selectedDetectorVersion,
+  onDetectorVersionChange,
+}: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -41,16 +51,16 @@ export function UploadDropzone({ onFileSelect, disabled }: UploadDropzoneProps) 
 
     const file = e.dataTransfer.files?.[0];
     if (file && isAcceptedVideoFile(file)) {
-      onFileSelect(file);
+      onFileSelect(file, selectedDetectorVersion);
     }
-  }, [disabled, onFileSelect]);
+  }, [disabled, onFileSelect, selectedDetectorVersion]);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && isAcceptedVideoFile(file)) {
-      onFileSelect(file);
+      onFileSelect(file, selectedDetectorVersion);
     }
-  }, [onFileSelect]);
+  }, [onFileSelect, selectedDetectorVersion]);
 
   const handleClick = () => {
     fileInputRef.current?.click();
@@ -108,6 +118,26 @@ export function UploadDropzone({ onFileSelect, disabled }: UploadDropzoneProps) 
             </p>
             <p className="text-sm">or click to browse</p>
           </div>
+          {detectorVersions && selectedDetectorVersion && onDetectorVersionChange && (
+            <label
+              className="w-full max-w-sm space-y-1 text-left text-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="font-medium text-foreground">Detector version</span>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-foreground shadow-sm"
+                value={selectedDetectorVersion}
+                disabled={disabled}
+                onChange={(e) => onDetectorVersionChange(e.target.value)}
+              >
+                {detectorVersions.map((detector) => (
+                  <option key={detector.version} value={detector.version}>
+                    {detector.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <Button variant="outline" disabled={disabled} onClick={(e) => { e.stopPropagation(); handleClick(); }}>
             Select File
           </Button>

@@ -27,6 +27,8 @@ _job_state: Dict[str, Any] = {
     "count_inferred": None,
     "inferred_count": None,
     "detector": None,
+    "detector_version": None,
+    "detector_label": None,
     "estimated_duration_sec": None,
 }
 
@@ -60,6 +62,8 @@ def reset_state() -> None:
             "count_inferred": None,
             "inferred_count": None,
             "detector": None,
+            "detector_version": None,
+            "detector_label": None,
             "estimated_duration_sec": None,
         }
 

@@ -158,3 +158,18 @@ cd web && npm test -- --run  # vitest
 **Lesson:** If `flake.nix` lists a package but `nix develop` can't import it, the nix store derivation may be stale. Pragmatic fallback: `pip install <pkg>` into `.venv` (which already uses `--system-site-packages`). Don't waste time debugging nix cache.
 **Context:** `fastapi` was in `flake.nix` pythonEnv but nix store site-packages didn't contain it. `pip install fastapi uvicorn python-multipart` into .venv resolved it immediately.
 **Verify:** `source .venv/bin/activate && python -c 'import fastapi'` — no ModuleNotFoundError
+
+### Separate detector version from tracking backend
+**Lesson:** Keep web `detector_version` (`v1`, `v2`) separate from low-level tracking `detector` (`yolo`, `tracknetv2`) when adding new serve algorithms.
+**Context:** The web API already used `detector` for the tracking backend; overloading it would break labels, estimates, and existing clients.
+**Verify:** `GET /api/detectors` lists versions, while `GET /api/job` can include both `detector_version` and `detector`.
+
+### V2 outputs must include frame-indexed tracks
+**Lesson:** Any detector service used by the web backend must return JSON-safe, frame-indexed `positions` and `raw_positions`, not just selected serves.
+**Context:** `clip_service.generate_clips()` uses those tracks for ball overlay metadata; omitting them breaks clip generation even when serve times are valid.
+**Verify:** `python -m unittest discover -s tests -p 'test_web_*' -v` and check v2 output has `positions`/`raw_positions`.
+
+### Benchmark refinements from cached detections first
+**Lesson:** For v2+ timing-refinement work, iterate with `--input-detections` cached from a known v1 run before attempting full video inference.
+**Context:** Full uncached v2 on 4K video can spend 10+ minutes regenerating the candidate pool; cached runs isolate refinement quality quickly.
+**Verify:** `python -m serve_analyzer.benchmark_detectors_v2 video.mov --timestamps-file timestamps_video.txt --input-detections benchmark_outputs/final_yolo_8_match_frame_skip_4/yolo_detections.json --expected-serves 8`

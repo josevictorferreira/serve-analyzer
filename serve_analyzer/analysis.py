@@ -13,7 +13,9 @@ import numpy as np
 import cv2
 import tempfile
 import os
-from typing import List, Tuple, Optional
+from typing import List, Sequence, Tuple, Optional
+
+from scipy.signal import savgol_filter as _savgol_filter
 
 
 def compute_scale_factor(
@@ -126,6 +128,45 @@ def compute_velocity_series(
     }
     
     return speeds_mps_smoothed, speeds_kmh, summary_stats
+
+
+def savgol_smooth(
+    values: Sequence[float],
+    window_length: int = 7,
+    polyorder: int = 3,
+) -> np.ndarray:
+    """Smooth a 1D series with Savitzky–Golay; preserves single-frame peaks better
+    than uniform moving-average or Gaussian smoothing.
+
+    Falls back to identity when the series is shorter than window_length, or when
+    window_length <= 1. window_length is clamped to be odd and > polyorder.
+    """
+    arr = np.asarray(values, dtype=float)
+    if arr.size == 0:
+        return arr
+    if window_length <= 1 or arr.size < window_length:
+        return arr.copy()
+    wl = int(window_length)
+    if wl % 2 == 0:
+        wl += 1
+    po = max(0, min(int(polyorder), wl - 1))
+    return np.asarray(_savgol_filter(arr, wl, po), dtype=float)
+
+
+def top_k_mean(values: Sequence[float], k: int = 5) -> float:
+    """Mean of the K largest values; falls back to mean(values) when len < K.
+
+    Used as an outlier-robust 'peak' velocity statistic alongside max().
+    Single huge spikes (e.g. tracking glitches) are diluted by K-1 honest samples."""
+    arr = np.asarray(values, dtype=float)
+    if arr.size == 0:
+        return 0.0
+    k = max(1, int(k))
+    if arr.size <= k:
+        return float(np.mean(arr))
+    # np.partition picks the k largest in O(n) without a full sort.
+    top = np.partition(arr, -k)[-k:]
+    return float(np.mean(top))
 
 
 def track_ball_template(

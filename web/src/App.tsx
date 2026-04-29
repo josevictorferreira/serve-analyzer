@@ -4,6 +4,8 @@ import { UploadDropzone } from './components/upload-dropzone'
 import { AnnotationWorkspace } from './components/annotation-workspace'
 import { Timeline } from './components/timeline'
 import { VideoPlayer } from './components/video-player'
+import { listDetectorVersions } from './lib/api'
+import type { DetectorVersionInfo } from './lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
@@ -18,6 +20,19 @@ const PHASE_LABELS: Record<string, string> = {
   error: 'Error'
 }
 
+const FALLBACK_DETECTORS: DetectorVersionInfo[] = [
+  {
+    version: 'v1',
+    label: 'V1 baseline',
+    description: 'Existing candidate generator and selector.',
+  },
+  {
+    version: 'v2',
+    label: 'V2 continuity refinement',
+    description: 'Continuity, history, and motion-cue refinement.',
+  },
+]
+
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -29,6 +44,8 @@ function App() {
   const { phase, progress, error, jobStatus, upload, reset, estimatedDurationSec, analysisProgress } = useAnalysisJob()
   const [activeClipIndex, setActiveClipIndex] = useState(0)
   const [mode, setMode] = useState<'analysis' | 'annotation'>('analysis')
+  const [detectorVersions, setDetectorVersions] = useState(FALLBACK_DETECTORS)
+  const [selectedDetectorVersion, setSelectedDetectorVersion] = useState('v1')
 
   const clips = jobStatus?.clips || []
   const candidates = jobStatus?.selected_serves || []
@@ -43,6 +60,22 @@ function App() {
   const activeClip = clips[activeClipIndex]
   const activeCandidate = candidates[activeClipIndex]
   const activeVelocity = activeClip?.velocity_kmh ?? activeCandidate?.post_contact_max_kmh
+  const detectorLabel = jobStatus?.detector_label
+    || detectorVersions.find((detector) => detector.version === jobStatus?.detector_version)?.label
+    || (jobStatus?.detector === 'tracknetv2' ? 'TrackNetV2' : 'YOLO/HSV')
+
+  useEffect(() => {
+    listDetectorVersions()
+      .then((response) => {
+        if (response.detectors.length > 0) {
+          setDetectorVersions(response.detectors)
+        }
+        setSelectedDetectorVersion(response.default_version)
+      })
+      .catch(() => {
+        setDetectorVersions(FALLBACK_DETECTORS)
+      })
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -81,7 +114,12 @@ function App() {
           <AnnotationWorkspace />
         ) : phase === 'idle' ? (
           <div className="h-full flex flex-col items-center justify-center py-12">
-            <UploadDropzone onFileSelect={upload} />
+            <UploadDropzone
+              onFileSelect={upload}
+              detectorVersions={detectorVersions}
+              selectedDetectorVersion={selectedDetectorVersion}
+              onDetectorVersionChange={setSelectedDetectorVersion}
+            />
           </div>
         ) : phase === 'done' && clips.length > 0 ? (
           <div className="space-y-6">
@@ -124,7 +162,7 @@ function App() {
                   <div className="col-span-2 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur sm:col-span-1">
                     <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Detector</div>
                     <div className="mt-1 text-lg font-black text-slate-950">
-                      {jobStatus?.detector === 'tracknetv2' ? 'TrackNetV2' : 'YOLO/HSV'}
+                      {detectorLabel}
                     </div>
                   </div>
                 </div>

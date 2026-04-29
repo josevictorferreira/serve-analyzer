@@ -131,7 +131,6 @@ class TestDetectServeCandidatesOutputShape(unittest.TestCase):
         self.assertIsInstance(candidates, list)
         self.assertEqual(len(candidates), 0)
 
-
     @patch("serve_analyzer.serve_attempts.analyze_serve")
     @patch("serve_analyzer.serve_attempts.detect_serve_events")
     @patch("serve_analyzer.serve_attempts.compute_horizontal_velocity")
@@ -370,23 +369,45 @@ class TestSelectServes(unittest.TestCase):
         """
         candidates = [
             _make_candidate(
-                contact_time_sec=0.3, score=0.98, max_kmh=40.0, mean_kmh=35.0,
-                rightward_fraction=0.1, net_rightward_displacement=-5.0,
+                contact_time_sec=0.3,
+                score=0.98,
+                max_kmh=40.0,
+                mean_kmh=35.0,
+                rightward_fraction=0.1,
+                net_rightward_displacement=-5.0,
             ),
             _make_candidate(
-                contact_time_sec=12.0, score=0.82, max_kmh=175.0, mean_kmh=165.0,
-                rightward_fraction=0.8, net_rightward_displacement=100.0,
-                support_count=3, recent_upward_fraction=0.55, frames_after_apex=30,
+                contact_time_sec=12.0,
+                score=0.82,
+                max_kmh=175.0,
+                mean_kmh=165.0,
+                rightward_fraction=0.8,
+                net_rightward_displacement=100.0,
+                support_count=3,
+                recent_upward_fraction=0.55,
+                frames_after_apex=30,
             ),
             _make_candidate(
-                contact_time_sec=28.0, score=0.78, max_kmh=168.0, mean_kmh=158.0,
-                rightward_fraction=0.75, net_rightward_displacement=90.0,
-                support_count=3, recent_upward_fraction=0.53, frames_after_apex=28,
+                contact_time_sec=28.0,
+                score=0.78,
+                max_kmh=168.0,
+                mean_kmh=158.0,
+                rightward_fraction=0.75,
+                net_rightward_displacement=90.0,
+                support_count=3,
+                recent_upward_fraction=0.53,
+                frames_after_apex=28,
             ),
             _make_candidate(
-                contact_time_sec=44.0, score=0.72, max_kmh=162.0, mean_kmh=152.0,
-                rightward_fraction=0.7, net_rightward_displacement=85.0,
-                support_count=2, recent_upward_fraction=0.50, frames_after_apex=26,
+                contact_time_sec=44.0,
+                score=0.72,
+                max_kmh=162.0,
+                mean_kmh=152.0,
+                rightward_fraction=0.7,
+                net_rightward_displacement=85.0,
+                support_count=2,
+                recent_upward_fraction=0.50,
+                frames_after_apex=26,
             ),
         ]
         result = select_serves(candidates, expected_serves=3)
@@ -397,27 +418,53 @@ class TestSelectServes(unittest.TestCase):
         """Multiple early high-score FPs should not crowd out real serves."""
         candidates = [
             _make_candidate(
-                contact_time_sec=0.4, score=0.96, max_kmh=35.0, mean_kmh=30.0,
-                rightward_fraction=0.1, net_rightward_displacement=-5.0,
+                contact_time_sec=0.4,
+                score=0.96,
+                max_kmh=35.0,
+                mean_kmh=30.0,
+                rightward_fraction=0.1,
+                net_rightward_displacement=-5.0,
             ),
             _make_candidate(
-                contact_time_sec=1.2, score=0.94, max_kmh=45.0, mean_kmh=38.0,
-                rightward_fraction=0.1, net_rightward_displacement=-10.0,
+                contact_time_sec=1.2,
+                score=0.94,
+                max_kmh=45.0,
+                mean_kmh=38.0,
+                rightward_fraction=0.1,
+                net_rightward_displacement=-10.0,
             ),
             _make_candidate(
-                contact_time_sec=10.0, score=0.80, max_kmh=172.0, mean_kmh=162.0,
-                rightward_fraction=0.8, net_rightward_displacement=100.0,
-                support_count=3, recent_upward_fraction=0.55, frames_after_apex=30,
+                contact_time_sec=10.0,
+                score=0.80,
+                max_kmh=172.0,
+                mean_kmh=162.0,
+                rightward_fraction=0.8,
+                net_rightward_displacement=100.0,
+                support_count=3,
+                recent_upward_fraction=0.55,
+                frames_after_apex=30,
             ),
             _make_candidate(
-                contact_time_sec=25.0, score=0.75, max_kmh=165.0, mean_kmh=155.0,
-                rightward_fraction=0.75, net_rightward_displacement=90.0,
-                support_count=2, recent_upward_fraction=0.52, frames_after_apex=28,
+                contact_time_sec=25.0,
+                score=0.75,
+                max_kmh=165.0,
+                mean_kmh=155.0,
+                rightward_fraction=0.75,
+                net_rightward_displacement=90.0,
+                support_count=2,
+                recent_upward_fraction=0.52,
+                frames_after_apex=28,
             ),
             _make_candidate(
-                contact_time_sec=40.0, score=0.70, max_kmh=158.0, mean_kmh=148.0,
-                rightward_fraction=0.7, net_rightward_displacement=85.0,
-                support_count=2, recent_upward_fraction=0.50, frames_after_apex=25,
+                contact_time_sec=40.0,
+                score=0.70,
+                max_kmh=158.0,
+                mean_kmh=148.0,
+                rightward_fraction=0.7,
+                net_rightward_displacement=85.0,
+                support_count=2,
+                recent_upward_fraction=0.50,
+                frames_after_apex=25,
             ),
         ]
         result = select_serves(candidates, expected_serves=3)
@@ -648,8 +695,12 @@ class TestSelectServesAutonomousCount(unittest.TestCase):
         candidates = [
             _make_candidate(contact_time_sec=10.0, score=0.9, max_kmh=170.0),
             _make_candidate(
-                contact_time_sec=30.0, score=0.1, max_kmh=5.0, mean_kmh=3.0,
-                rightward_fraction=0.1, net_rightward_displacement=-2.0,
+                contact_time_sec=30.0,
+                score=0.1,
+                max_kmh=5.0,
+                mean_kmh=3.0,
+                rightward_fraction=0.1,
+                net_rightward_displacement=-2.0,
                 drop_after_apex=2.0,
             ),
             _make_candidate(contact_time_sec=50.0, score=0.8, max_kmh=165.0),
@@ -904,8 +955,12 @@ class TestSelectServesAutonomous(unittest.TestCase):
             _make_candidate(contact_time_sec=10.0, score=0.9, max_kmh=175.0),
             _make_candidate(contact_time_sec=25.0, score=0.85, max_kmh=170.0),
             _make_candidate(
-                contact_time_sec=1.0, score=0.5, max_kmh=30.0, mean_kmh=25.0,
-                rightward_fraction=0.15, net_rightward_displacement=-3.0,
+                contact_time_sec=1.0,
+                score=0.5,
+                max_kmh=30.0,
+                mean_kmh=25.0,
+                rightward_fraction=0.15,
+                net_rightward_displacement=-3.0,
                 drop_after_apex=3.0,
             ),
         ]
@@ -1083,9 +1138,11 @@ class TestAdapterAutonomousMode(unittest.TestCase):
     """analysis_service passes expected_serves=None through to detector."""
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
-    def test_autonomous_mode_passes_none_to_detector(self, mock_detect, mock_select, mock_info):
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
+    def test_autonomous_mode_passes_none_to_detector(
+        self, mock_detect, mock_select, mock_info
+    ):
         """When expected_serves=None, detector receives None (not 12)."""
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = {"candidates": [], "positions": [], "frame_skip": 1}
@@ -1097,9 +1154,11 @@ class TestAdapterAutonomousMode(unittest.TestCase):
         self.assertIsNone(kwargs["expected_serves"])
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
-    def test_explicit_mode_passes_int_to_detector(self, mock_detect, mock_select, mock_info):
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
+    def test_explicit_mode_passes_int_to_detector(
+        self, mock_detect, mock_select, mock_info
+    ):
         """When expected_serves=5, detector receives 5."""
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = {"candidates": [], "positions": [], "frame_skip": 1}
@@ -1109,7 +1168,6 @@ class TestAdapterAutonomousMode(unittest.TestCase):
 
         _, kwargs = mock_detect.call_args
         self.assertEqual(kwargs["expected_serves"], 5)
-
 
 
 class TestDirectionUnreliableRecovery(unittest.TestCase):
@@ -1198,6 +1256,7 @@ class TestDirectionUnreliableRecovery(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["contact_time_sec"], 42.0)
 
+
 # ---------------------------------------------------------------------------
 # Contact-frame refinement (_refine_contact_frame)
 # ---------------------------------------------------------------------------
@@ -1209,10 +1268,12 @@ class TestContactFrameRefinement(unittest.TestCase):
     def _make_horiz_velocities(self, n, accel_frame, pre_val=1.0, post_val=20.0):
         """Build a horiz_velocities array with a sharp acceleration at accel_frame."""
         import numpy as np
+
         hv = np.full(n, pre_val, dtype=float)
         hv[accel_frame:] = post_val
         # Smooth slightly to mimic real data
         from scipy.ndimage import gaussian_filter1d
+
         hv = gaussian_filter1d(hv, sigma=1.0)
         return hv
 
@@ -1222,7 +1283,7 @@ class TestContactFrameRefinement(unittest.TestCase):
 
         n = 60
         accel_frame = 30  # true contact: sharp rightward acceleration here
-        peak_frame = 33    # smoothed velocity peak is a few frames late
+        peak_frame = 33  # smoothed velocity peak is a few frames late
         hv = self._make_horiz_velocities(n, accel_frame, pre_val=1.0, post_val=25.0)
         positions = [(float(i), 100.0) for i in range(n)]
 
@@ -1270,9 +1331,9 @@ class TestContactFrameRefinement(unittest.TestCase):
         # and a nearby frame (28) has slightly higher accel (=21).
         # 21 is NOT > 20*1.5=30, so refinement must be rejected.
         hv = np.zeros(n)
-        hv[28] = 21.0   # accel from 27→28 = 21 (strong, but not 1.5x of peak)
-        hv[30] = 0.0    # setup so accel from 30→31 = 20
-        hv[31] = 20.0   # accel from 30→31 = 20 (peak's own accel)
+        hv[28] = 21.0  # accel from 27→28 = 21 (strong, but not 1.5x of peak)
+        hv[30] = 0.0  # setup so accel from 30→31 = 20
+        hv[31] = 20.0  # accel from 30→31 = 20 (peak's own accel)
         positions = [(float(i), 100.0) for i in range(n)]
 
         refined = _refine_contact_frame(30, positions, hv, window=5)
@@ -1401,6 +1462,7 @@ class TestTossGeometryAndFloorDriveRejection(unittest.TestCase):
         times = [c["contact_time_sec"] for c in result]
         self.assertNotIn(5.0, times)
         self.assertIn(20.0, times)
+
     def test_floor_hit_false_positive_rejected(self):
         """Rightward motion plus strong immediate downward post-contact is rejected."""
         floor_hit = _make_candidate(

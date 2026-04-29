@@ -19,8 +19,8 @@ class TestAnalysisServiceShape(unittest.TestCase):
     """Adapter returns correct keys and excludes evaluator-only keys."""
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_result_has_required_keys(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = _detection_result(
@@ -41,6 +41,8 @@ class TestAnalysisServiceShape(unittest.TestCase):
             "inferred_count",
             "selected_serves",
             "candidates",
+            "detector_version",
+            "detector_label",
         }
         self.assertTrue(
             required_keys.issubset(result.keys()),
@@ -57,8 +59,36 @@ class TestAnalysisServiceShape(unittest.TestCase):
             self.assertNotIn(key, result, f"Evaluator key '{key}' leaked into result")
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.detect_serve_candidates_v2")
+    def test_v2_detector_version_uses_v2_service(self, mock_detect_v2, mock_info):
+        mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
+        mock_detect_v2.return_value = {
+            "selected_serves": [
+                {"contact_time_sec": 10.1, "contact_frame": 303},
+            ],
+            "candidates": [
+                {"contact_time_sec": 10.1, "contact_frame": 303},
+            ],
+            "positions": [[1.0, 2.0]],
+            "raw_positions": [[1.0, 2.0]],
+            "frame_skip": 1,
+            "seed_detector": "yolo",
+        }
+
+        result = run_analysis("/tmp/video.mov", detector_version="v2")
+
+        self.assertEqual(result["detector_version"], "v2")
+        self.assertEqual(result["detector_label"], "V2 continuity refinement")
+        self.assertEqual(result["selected_serves"][0]["contact_time_sec"], 10.1)
+        mock_detect_v2.assert_called_once()
+
+    def test_unknown_detector_version_raises(self):
+        with self.assertRaises(ValueError):
+            run_analysis("/tmp/video.mov", detector_version="v99")
+
+    @patch("web.backend.services.analysis_service.get_video_info")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_empty_candidates_shape(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = _detection_result([])
@@ -76,8 +106,8 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
     """count_inferred reflects expected_serves=None vs explicit int."""
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_none_means_inferred(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = _detection_result(
@@ -94,8 +124,8 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
         self.assertEqual(result["inferred_count"], 1)
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_explicit_int_not_inferred(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = _detection_result(
@@ -113,8 +143,8 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
         self.assertIsNone(result["inferred_count"])
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_pool_size_passes_none_in_autonomous_mode(
         self, mock_detect, mock_select, mock_info
     ):
@@ -129,8 +159,8 @@ class TestAnalysisServiceCountInference(unittest.TestCase):
         self.assertIsNone(kwargs["expected_serves"])
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_pool_size_passed_through_when_explicit(
         self, mock_detect, mock_select, mock_info
     ):
@@ -147,8 +177,8 @@ class TestAnalysisServiceProgress(unittest.TestCase):
     """Progress callback receives expected phase strings."""
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_callback_receives_analyzing_and_done(
         self, mock_detect, mock_select, mock_info
     ):
@@ -163,8 +193,8 @@ class TestAnalysisServiceProgress(unittest.TestCase):
         self.assertIn("done", phases)
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_callback_receives_clipping_between_analyzing_and_done(
         self, mock_detect, mock_select, mock_info
     ):
@@ -178,8 +208,8 @@ class TestAnalysisServiceProgress(unittest.TestCase):
         self.assertEqual(phases, ["analyzing", "clipping", "done"])
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_no_callback_when_none_provided(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = _detection_result([])
@@ -194,8 +224,8 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
     """Adapter picks frame_skip based on video metadata."""
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_4k_uses_frame_skip_4(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 3840, "height": 2160, "frame_count": 4133}
         mock_detect.return_value = _detection_result([])
@@ -206,8 +236,8 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
         self.assertEqual(kwargs["frame_skip"], 4)
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_1080p_uses_frame_skip_2(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1920, "height": 1080, "frame_count": 2000}
         mock_detect.return_value = _detection_result([])
@@ -218,8 +248,8 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
         self.assertEqual(kwargs["frame_skip"], 2)
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_small_video_uses_frame_skip_1(self, mock_detect, mock_select, mock_info):
         mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
         mock_detect.return_value = _detection_result([])
@@ -230,8 +260,8 @@ class TestAnalysisServiceAdaptiveFrameSkip(unittest.TestCase):
         self.assertEqual(kwargs["frame_skip"], 1)
 
     @patch("web.backend.services.analysis_service.get_video_info")
-    @patch("web.backend.services.analysis_service.select_serves")
-    @patch("web.backend.services.analysis_service.detect_serve_candidates")
+    @patch("web.backend.services.detection_services.select_serves")
+    @patch("web.backend.services.detection_services.detect_serve_candidates")
     def test_autonomous_expected_serves_none_passed_through(
         self, mock_detect, mock_select, mock_info
     ):

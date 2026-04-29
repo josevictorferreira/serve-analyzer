@@ -37,7 +37,7 @@ export interface BallPosition {
 }
 
 export interface JobStatus {
-  status: 'idle' | 'analyzing' | 'clipping' | 'done' | 'error' | 'busy';
+  status: 'idle' | 'uploading' | 'analyzing' | 'clipping' | 'done' | 'error' | 'busy';
   phase: JobPhase | null;
   error?: string;
   clips?: ClipMeta[];
@@ -46,7 +46,20 @@ export interface JobStatus {
   count_inferred?: boolean;
   inferred_count?: number;
   detector?: string | null;
+  detector_version?: string | null;
+  detector_label?: string | null;
   estimated_duration_sec?: number | null;
+}
+
+export interface DetectorVersionInfo {
+  version: string;
+  label: string;
+  description: string;
+}
+
+export interface DetectorVersionsResponse {
+  detectors: DetectorVersionInfo[];
+  default_version: string;
 }
 
 export interface ServeAttempt {

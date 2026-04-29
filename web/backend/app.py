@@ -5,7 +5,7 @@ import shutil
 import threading
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -22,6 +22,7 @@ from .schemas import (
     AnnotationReviewRequest,
     AnnotationSessionResponse,
     AnnotationSessionsResponse,
+    DetectorVersionsResponse,
     JobStatus,
     TrainingEnvironmentResponse,
 )
@@ -29,6 +30,11 @@ from .state import is_job_active, reset_state, set_state, JobPhase
 from .services.analysis_service import run_analysis
 from .services import annotation_service
 from .services.clip_service import generate_clips
+from .services.detection_services import (
+    default_detector_version,
+    list_detector_versions,
+    resolve_detector_version,
+)
 
 app = FastAPI(title="Serve Analyzer API")
 
@@ -55,6 +61,15 @@ async def get_job() -> dict[str, Any]:
     return get_state()
 
 
+@app.get("/api/detectors", response_model=DetectorVersionsResponse)
+async def get_detectors() -> dict[str, Any]:
+    """Return serve detector versions available to the web frontend."""
+    return {
+        "detectors": list_detector_versions(),
+        "default_version": default_detector_version(),
+    }
+
+
 ALLOWED_TYPES = {
     "video/mp4",
     "video/quicktime",
@@ -66,7 +81,9 @@ ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
 
 
 @app.post("/api/analyze", status_code=202, response_model=AnalyzeResponse)
-async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
+async def analyze(
+    video: UploadFile = File(...), detector_version: str | None = Form(None)
+) -> dict[str, str]:
     """Accept a video upload and start analysis in the background."""
     if is_job_active():
         raise HTTPException(status_code=409, detail="A job is already active")
@@ -79,6 +96,10 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
         raise HTTPException(
             status_code=400, detail=f"Unsupported file extension: {ext}"
         )
+    try:
+        selected_detector_version = resolve_detector_version(detector_version)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     reset_state()
     set_state({"status": JobPhase.UPLOADING})
 
@@ -96,25 +117,32 @@ async def analyze(video: UploadFile = File(...)) -> dict[str, str]:
 
     from .services.analysis_service import estimate_analysis_duration
 
-    estimated = estimate_analysis_duration(temp_video)
-    set_state({"status": JobPhase.ANALYZING, "estimated_duration_sec": estimated})
+    estimated = estimate_analysis_duration(temp_video, selected_detector_version)
+    set_state(
+        {
+            "status": JobPhase.ANALYZING,
+            "estimated_duration_sec": estimated,
+            "detector_version": selected_detector_version,
+        }
+    )
 
     # Start real analysis in a background thread (CPU-blocking).
     threading.Thread(
         target=_run_analysis_thread,
-        args=(temp_video,),
+        args=(temp_video, selected_detector_version),
         daemon=True,
     ).start()
 
     return {"status": "accepted", "message": "Analysis started"}
 
 
-def _run_analysis_thread(video_path: str) -> None:
+def _run_analysis_thread(video_path: str, detector_version: str) -> None:
     """Run blocking analysis, generate clips, and update shared state."""
     try:
         result = run_analysis(
             video_path,
             expected_serves=None,
+            detector_version=detector_version,
             on_progress=lambda phase: set_state({"phase": phase}),
         )
         selected_serves = result["selected_serves"]
@@ -127,6 +155,8 @@ def _run_analysis_thread(video_path: str) -> None:
                 "count_inferred": result["count_inferred"],
                 "inferred_count": result["inferred_count"],
                 "detector": result["detector"],
+                "detector_version": result["detector_version"],
+                "detector_label": result["detector_label"],
             }
         )
         clip_metadata = generate_clips(

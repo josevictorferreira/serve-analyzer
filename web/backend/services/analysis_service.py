@@ -1,16 +1,16 @@
 """Adapter service that wraps the detector stack for the web backend.
 
-Imports serve_analyzer.serve_attempts directly instead of shelling out,
-and normalizes the result into a stable job payload.
+Selects a detector-version service instead of shelling out, and normalizes
+the result into a stable job payload.
 """
 
 import os
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from serve_analyzer.analysis import get_video_info
-from serve_analyzer.serve_attempts import (
-    detect_serve_candidates,
-    select_serves,
+from web.backend.services.detection_services import (
+    get_detector_service,
+    resolve_detector_version,
 )
 
 
@@ -50,12 +50,13 @@ def _detector_config() -> Dict[str, Optional[str]]:
     }
 
 
-def estimate_analysis_duration(video_path: str) -> float:
+def estimate_analysis_duration(
+    video_path: str, detector_version: Optional[str] = None
+) -> float:
     """Estimate total analysis time in seconds based on video metadata.
 
-    Uses frame count, resolution, and recommended frame_skip to predict
-    how long YOLO detection + select_serves will take. Conservative estimate
-    at ~0.3 seconds per sampled frame (includes YOLO inference + HSV tracking).
+    Uses frame count, resolution, recommended frame_skip, and selected detector
+    version to predict how long the detector stack will take.
 
     Returns
     -------
@@ -76,14 +77,16 @@ def estimate_analysis_duration(video_path: str) -> float:
         frame_skip = 1
 
     sampled_frames = max(1, frame_count // frame_skip)
-    detector = os.environ.get("SERVE_ANALYZER_DETECTOR", "yolo").lower()
-    seconds_per_sample = 0.7 if detector == "tracknetv2" else 0.3
+    tracking_detector = os.environ.get("SERVE_ANALYZER_DETECTOR", "yolo").lower()
+    service = get_detector_service(detector_version)
+    seconds_per_sample = service.estimate_seconds_per_sample(tracking_detector)
     return float(sampled_frames * seconds_per_sample)
 
 
 def run_analysis(
     video_path: str,
     expected_serves: Optional[int] = None,
+    detector_version: Optional[str] = None,
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
     """Run detector + selector on *video_path* and return a normalized payload.
@@ -109,6 +112,8 @@ def run_analysis(
     if on_progress:
         on_progress("analyzing")
 
+    selected_detector_version = resolve_detector_version(detector_version)
+    detector_service = get_detector_service(selected_detector_version)
     frame_skip = _recommended_frame_skip(video_path)
 
     # Pool size follows CLI default at serve_attempts.py:507-508
@@ -117,23 +122,16 @@ def run_analysis(
     pool_size = expected_serves
     detector_config = _detector_config()
 
-    detection_result = detect_serve_candidates(
+    detection_result = detector_service.run(
         video_path,
         expected_serves=pool_size,
-        detector=detector_config["detector"] or "yolo",
-        model=detector_config["model"] or "rjtp",
-        tracknet_weights=detector_config["tracknet_weights"],
-        tracknet_device=detector_config["tracknet_device"] or "cpu",
         frame_skip=frame_skip,
+        tracking_config=detector_config,
     )
-    candidates: List[Dict[str, Any]] = detection_result["candidates"]
+    candidates = detection_result["candidates"]
     positions = detection_result["positions"]
-    detection_frame_skip = detection_result["frame_skip"]
-
-    selected: List[Dict[str, Any]] = select_serves(
-        candidates,
-        expected_serves=expected_serves,
-    )
+    detection_frame_skip = detection_result["detection_frame_skip"]
+    selected = detection_result["selected_serves"]
 
     count_inferred = expected_serves is None
     inferred_count: Optional[int] = len(selected) if count_inferred else None
@@ -147,7 +145,9 @@ def run_analysis(
         "expected_serves": expected_serves,
         "count_inferred": bool(count_inferred),
         "inferred_count": inferred_count,
-        "detector": detector_config["detector"],
+        "detector": detection_result["detector"],
+        "detector_version": detection_result["detector_version"],
+        "detector_label": detection_result["detector_label"],
         "selected_serves": selected,
         "candidates": candidates,
         "positions": positions,

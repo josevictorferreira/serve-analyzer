@@ -17,6 +17,8 @@ class JobStatus(BaseModel):
     count_inferred: Optional[bool] = None
     inferred_count: Optional[int] = None
     detector: Optional[str] = None
+    detector_version: Optional[str] = None
+    detector_label: Optional[str] = None
     estimated_duration_sec: Optional[float] = None
 
 
@@ -25,6 +27,21 @@ class AnalyzeResponse(BaseModel):
 
     status: str
     message: str
+
+
+class DetectorVersionInfo(BaseModel):
+    """One serve detector version available to the web app."""
+
+    version: str
+    label: str
+    description: str
+
+
+class DetectorVersionsResponse(BaseModel):
+    """Response from GET /api/detectors."""
+
+    detectors: List[DetectorVersionInfo]
+    default_version: str
 
 
 class AnnotationReviewRequest(BaseModel):
