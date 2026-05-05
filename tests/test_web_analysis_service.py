@@ -82,6 +82,41 @@ class TestAnalysisServiceShape(unittest.TestCase):
         self.assertEqual(result["selected_serves"][0]["contact_time_sec"], 10.1)
         mock_detect_v2.assert_called_once()
 
+    @patch("web.backend.services.analysis_service.get_video_info")
+    @patch("web.backend.services.detection_services.detect_serve_candidates_v6")
+    def test_v6_detector_version_ignores_expected_serves(
+        self, mock_detect_v6, mock_info
+    ):
+        mock_info.return_value = {"width": 1280, "height": 720, "frame_count": 500}
+        mock_detect_v6.return_value = {
+            "selected_serves": [
+                {"contact_time_sec": 10.1, "contact_frame": 303},
+            ],
+            "candidates": [
+                {"contact_time_sec": 10.1, "contact_frame": 303},
+            ],
+            "positions": [[1.0, 2.0]],
+            "raw_positions": [[1.0, 2.0]],
+            "frame_skip": 1,
+            "seed_detector": "yolo",
+            "expected_serves": None,
+            "count_inferred": True,
+            "inferred_count": 1,
+        }
+
+        result = run_analysis(
+            "/tmp/video.mov", expected_serves=8, detector_version="v6"
+        )
+
+        self.assertEqual(result["detector_version"], "v6")
+        self.assertEqual(result["detector_label"], "V6 two-stage ensemble")
+        self.assertIsNone(result["expected_serves"])
+        self.assertTrue(result["count_inferred"])
+        self.assertEqual(result["inferred_count"], 1)
+        mock_detect_v6.assert_called_once()
+        _, kwargs = mock_detect_v6.call_args
+        self.assertNotIn("expected_serves", kwargs)
+
     def test_unknown_detector_version_raises(self):
         with self.assertRaises(ValueError):
             run_analysis("/tmp/video.mov", detector_version="v99")

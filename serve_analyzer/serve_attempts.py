@@ -8,7 +8,7 @@ evaluation logic are in serve_analyzer.serve_evaluation.
 import argparse
 import json
 import math
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from scipy import signal
@@ -31,6 +31,67 @@ from serve_analyzer.serve_evaluation import (  # noqa: F401  re-export for backw
     parse_timestamps_text,
     summarize_serve_attempts,
 )
+
+def temporal_consistency_filter(
+    positions: List[Optional[Tuple[float, float]]],
+    max_jump_px: float = 300.0,
+    min_consecutive: int = 3,
+) -> List[Optional[Tuple[float, float]]]:
+    """Reject flickering false positives via temporal consistency gating.
+
+    If current position is too far from the last accepted position,
+    reject it. Only start accepting after seeing min_consecutive nearby
+    positions. This eliminates false positives that flicker between
+    distant unrelated objects (leaves, background artifacts) while
+    tolerating gaps (None values) in the track.
+
+    Intended for use AFTER interpolation/Kalman smoothing when positions
+    are dense enough for consecutive detection logic to work.
+
+    Args:
+        positions: Per-frame ball positions (x, y) or None.
+        max_jump_px: Maximum pixel distance between consecutive accepted
+            positions.
+        min_consecutive: Required consecutive nearby positions to accept.
+
+    Returns:
+        Filtered position list with false-positive flickering removed.
+    """
+    result: List[Optional[Tuple[float, float]]] = [None] * len(positions)
+    pending: List[Tuple[int, Tuple[float, float]]] = []
+    last_accepted: Optional[Tuple[float, float]] = None
+
+    for i, pos in enumerate(positions):
+        if pos is None:
+            pending.clear()
+            continue
+
+        pos_tuple = (float(pos[0]), float(pos[1]))
+
+        if last_accepted is None:
+            pending.append((i, pos_tuple))
+            if len(pending) >= min_consecutive:
+                for idx, p in pending:
+                    result[idx] = p
+                last_accepted = pending[-1][1]
+                pending.clear()
+        else:
+            jump = math.hypot(
+                pos_tuple[0] - last_accepted[0],
+                pos_tuple[1] - last_accepted[1],
+            )
+            if jump <= max_jump_px:
+                pending.append((i, pos_tuple))
+                if len(pending) >= min_consecutive:
+                    for idx, p in pending:
+                        result[idx] = p
+                    last_accepted = pending[-1][1]
+                    pending.clear()
+            else:
+                pending.clear()
+
+    return result
+
 
 
 def _merge_candidate_events(

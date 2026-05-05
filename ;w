@@ -1,5 +1,0 @@
-
-# Improvements
-
-- Consider that the ball may not move more than "X" pixels from frame to frame. Only if it wasn't detection by more thant "Y" frames.
-- Multiples detection can be done in parallel with another, so in a single frame we can detect for the ball, racket position, body position to identify the exact serve motion.

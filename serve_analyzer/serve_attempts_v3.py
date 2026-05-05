@@ -39,7 +39,9 @@ import numpy as np
 from serve_analyzer.analysis import savgol_smooth, top_k_mean
 from serve_analyzer.audio_contact import detect_onsets, nearest_onset
 from serve_analyzer.kalman import smooth_track
-from serve_analyzer.serve_attempts import detect_serve_candidates, select_serves
+from serve_analyzer.serve_attempts import (
+    detect_serve_candidates, select_serves, temporal_consistency_filter,
+)
 
 
 Position = Optional[Tuple[float, float]]
@@ -452,7 +454,7 @@ def detect_serve_candidates_v3(
     video_path: str,
     expected_serves: Optional[int] = None,
     detector: str = "yolo",
-    model: str = "rjtp",
+    model: str = "yolo26n",
     tracknet_weights: Optional[str] = None,
     tracknet_device: str = "cpu",
     scale_factor: float = 0.001,
@@ -531,6 +533,10 @@ def detect_serve_candidates_v3(
         max_imputed_run=max_imputed_run,
     )
     positions = kalman_result.positions
+    # Reject flickering false positives after Kalman smoothing.
+    positions = temporal_consistency_filter(
+        positions, max_jump_px=2000.0, min_consecutive=2
+    )
 
     radius_frames = max(1, int(search_radius_sec * fps))
     history_frames = max(1, int(history_sec * fps))
@@ -661,7 +667,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("video", help="Path to video file")
     parser.add_argument("--expected-serves", type=int, default=None)
     parser.add_argument("--detector", choices=("yolo", "tracknetv2"), default="yolo")
-    parser.add_argument("--model", default="rjtp")
+    parser.add_argument("--model", default="yolo26n")
     parser.add_argument("--tracknet-weights")
     parser.add_argument("--tracknet-device", default="cpu")
     parser.add_argument("--scale-factor", type=float, default=0.001)

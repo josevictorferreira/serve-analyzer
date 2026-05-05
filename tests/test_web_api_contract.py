@@ -44,6 +44,7 @@ class TestWebApiContract(unittest.TestCase):
         versions = {detector["version"] for detector in data["detectors"]}
         self.assertIn("v1", versions)
         self.assertIn("v2", versions)
+        self.assertIn("v6", versions)
         self.assertIn(data["default_version"], versions)
 
     def test_post_analyze_conflict(self) -> None:

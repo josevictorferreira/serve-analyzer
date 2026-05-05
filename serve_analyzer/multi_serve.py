@@ -65,7 +65,7 @@ class ServeEvent:
 
 def detect_ball_yolo(
     video_path: str,
-    model_path: str = "rjtp",
+    model_path: str = "yolo26n",
     conf_threshold: float = 0.20,
     max_frames: Optional[int] = None,
     frame_skip: int = 1,
@@ -100,6 +100,20 @@ def detect_ball_yolo(
         total_frames = min(total_frames, max_frames)
 
     # Resolve model alias and download if needed
+    _is_rjtp = model_path in ("rjtp", "RJTPP/tennis-ball-detection")
+    _is_yolo26n = model_path in ("yolo26n", "yolo26n.pt")
+    if _is_rjtp:
+        from huggingface_hub import hf_hub_download
+        model_path = hf_hub_download(
+            repo_id="RJTPP/tennis-ball-detection", filename="best.pt"
+        )
+        print(f"Using RJTPP tennis-ball model: {model_path}")
+    elif _is_yolo26n:
+        project_root = Path(__file__).parent.parent
+        model_path = str(project_root / "yolo26n.pt")
+        print(f"Using fine-tuned YOLO26n model: {model_path}")
+    else:
+        print(f"Loading YOLO model: {model_path}")
     _is_rjtp = model_path in ("rjtp", "RJTPP/tennis-ball-detection")
     if _is_rjtp:
         from huggingface_hub import hf_hub_download
@@ -136,7 +150,7 @@ def detect_ball_yolo(
             conf=conf_threshold,
             verbose=False,
             device="cpu",
-            classes=[32] if not _is_rjtp else None,  # sports ball class in COCO (not needed for RJTPP)
+            classes=[32] if not _is_rjtp and not _is_yolo26n else None,  # sports ball class in COCO (not needed for RJTPP or yolo26n)
         )
 
         ball_pos = None

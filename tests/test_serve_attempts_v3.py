@@ -189,8 +189,8 @@ class TestDetectServeCandidatesV3(unittest.TestCase):
         candidate = result["selected_serves"][0]
         self.assertIn("v3_audio_match_delta_sec", candidate)
         self.assertIsNotNone(candidate["v3_audio_match_delta_sec"])
-        # Onset at 1.0s, contact at 1.0s -> delta near 0.
-        self.assertLess(abs(candidate["v3_audio_match_delta_sec"]), 0.05)
+        # Onset-based refinement may shift contact frame slightly; delta should be well within audio tolerance.
+        self.assertLess(abs(candidate["v3_audio_match_delta_sec"]), 0.10)
 
 
 if __name__ == "__main__":

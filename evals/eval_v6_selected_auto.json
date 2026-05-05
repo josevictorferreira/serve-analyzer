@@ -1,0 +1,119 @@
+{
+  "target_count": 8,
+  "candidate_count": 8,
+  "matched_count": 8,
+  "unmatched_candidate_count": 0,
+  "tolerance_sec": 3.0,
+  "attempts": [
+    {
+      "serve_number": 1,
+      "target_time_sec": 13.0,
+      "candidate_index": 0,
+      "detected_time_sec": 12.805884345511735,
+      "delta_sec": -0.1941156544882645,
+      "matched": true,
+      "post_contact_max_kmh": 32.73973897077649,
+      "post_contact_mean_kmh": 69.97135702290134,
+      "post_contact_max_mps": 9.094371936326803,
+      "post_contact_mean_mps": 19.43648806191704
+    },
+    {
+      "serve_number": 2,
+      "target_time_sec": 19.0,
+      "candidate_index": 1,
+      "detected_time_sec": 19.542313089765305,
+      "delta_sec": 0.5423130897653046,
+      "matched": true,
+      "post_contact_max_kmh": 73.25222846150407,
+      "post_contact_mean_kmh": 48.834818974336045,
+      "post_contact_max_mps": 20.347841239306685,
+      "post_contact_mean_mps": 13.565227492871124
+    },
+    {
+      "serve_number": 3,
+      "target_time_sec": 28.0,
+      "candidate_index": 2,
+      "detected_time_sec": 29.813699491894507,
+      "delta_sec": 1.813699491894507,
+      "matched": true,
+      "post_contact_max_kmh": 116.42253353835852,
+      "post_contact_mean_kmh": 77.61502235890568,
+      "post_contact_max_mps": 32.33959264954403,
+      "post_contact_mean_mps": 21.559728433029353
+    },
+    {
+      "serve_number": 4,
+      "target_time_sec": 32.0,
+      "candidate_index": 3,
+      "detected_time_sec": 34.41581417856279,
+      "delta_sec": 2.4158141785627905,
+      "matched": true,
+      "post_contact_max_kmh": 128.45232197692303,
+      "post_contact_mean_kmh": 74.66993280707337,
+      "post_contact_max_mps": 35.68120054914529,
+      "post_contact_mean_mps": 20.741648001964823
+    },
+    {
+      "serve_number": 5,
+      "target_time_sec": 37.0,
+      "candidate_index": 4,
+      "detected_time_sec": 39.58485603677716,
+      "delta_sec": 2.584856036777161,
+      "matched": true,
+      "post_contact_max_kmh": 49.352505545509075,
+      "post_contact_mean_kmh": 32.901670363672714,
+      "post_contact_max_mps": 13.709029318196965,
+      "post_contact_mean_mps": 9.139352878797975
+    },
+    {
+      "serve_number": 6,
+      "target_time_sec": 48.0,
+      "candidate_index": 5,
+      "detected_time_sec": 46.48802806677958,
+      "delta_sec": -1.5119719332204227,
+      "matched": true,
+      "post_contact_max_kmh": 78.36499301062024,
+      "post_contact_mean_kmh": 52.243328673746824,
+      "post_contact_max_mps": 21.768053614061177,
+      "post_contact_mean_mps": 14.51203574270745
+    },
+    {
+      "serve_number": 7,
+      "target_time_sec": 52.0,
+      "candidate_index": 6,
+      "detected_time_sec": 51.02344543914832,
+      "delta_sec": -0.9765545608516817,
+      "matched": true,
+      "post_contact_max_kmh": 117.60291760513581,
+      "post_contact_mean_kmh": 78.40194507009055,
+      "post_contact_max_mps": 32.667477112537725,
+      "post_contact_mean_mps": 21.77831807502515
+    },
+    {
+      "serve_number": 8,
+      "target_time_sec": 62.0,
+      "candidate_index": 7,
+      "detected_time_sec": 61.96180498427292,
+      "delta_sec": -0.03819501572707651,
+      "matched": true,
+      "post_contact_max_kmh": 27.928169712124692,
+      "post_contact_mean_kmh": 40.484197834674,
+      "post_contact_max_mps": 7.757824920034636,
+      "post_contact_mean_mps": 11.245610509631666
+    }
+  ],
+  "unmatched_candidates": [],
+  "detection_json": "run_v6_auto.json",
+  "timestamps_file": "timestamps_video.txt",
+  "source": "selected_serves",
+  "targets_sec": [
+    13.0,
+    19.0,
+    28.0,
+    32.0,
+    37.0,
+    48.0,
+    52.0,
+    62.0
+  ]
+}

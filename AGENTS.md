@@ -1,8 +1,113 @@
 # PROJECT KNOWLEDGE BASE
+**Generated:** 2026-05-05
+**Commit:** 4122601
+**Branch:** main
 
-Before starting any implementation, read `AGENTS.md or CLAUDE.md` for project-specific lessons and gotchas.
+## OVERVIEW
+Tennis serve velocity estimation from lateral video. Python package using OpenCV template matching + numpy/scipy for tracking and velocity computation.
+Web app (Vite React + FastAPI) for interactive analysis.
+Multi-serve detector with 6 algorithmic versions (v1-v6).
 
-**Generated:** 2026-04-03
+## STRUCTURE
+```
+./
+├── flake.nix              # Nix dev environment (ONLY dependency management)
+├── serve_analyzer/        # Python package
+│   ├── __init__.py
+│   ├── __main__.py        # Thin wrapper → cli.main()
+│   ├── analysis.py        # Core: scale_factor, velocity_series, track_ball_template
+│   ├── cli.py             # CLI entry + InteractiveCalibrator
+│   ├── plot_serve.py      # Speed graph generator script
+│   ├── multi_serve.py     # Multi-serve detector: YOLO+HSV tracking, serve event detection
+│   ├── serve_attempts.py  # v1-v6 serve detection algorithms
+│   ├── serve_evaluation.py # Benchmark detector output vs manual timestamps
+│   └── benchmark_detectors_v2.py # V2+ timing refinement with cached detections
+├── tests/                 # unittest TestCases
+├── notebooks/             # Jupyter analysis notebooks
+├── web/                   # Web app (Vite React + FastAPI backend)
+│   ├── backend/           # FastAPI on port 8000
+│   │   ├── main.py        # Entry point (non-standard: not app.py)
+│   │   ├── app.py         # FastAPI routes
+│   │   ├── state.py       # Job state machine
+│   │   ├── schemas.py     # Pydantic models
+│   │   └── services/      # clip_service.py, detection_services.py
+│   ├── src/               # React frontend
+│   └── package.json       # npm managed
+├── models/                # YOLO training data (roboflow exports)
+├── annotation_exports/    # Training run artifacts
+└── .sisyphus/             # Sisyphus tooling (not project code)
+```
+
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Speed graph script | `serve_analyzer/plot_serve.py` | Generates matplotlib speed profile from video |
+| Multi-serve analysis | `serve_analyzer/multi_serve.py` | Detects N serves, toss vs post-contact phases |
+| Serve detector v1-v6 | `serve_analyzer/serve_attempts*.py` | v6 achieves 100% recall on cached benchmark |
+| Serve evaluation | `serve_analyzer/serve_evaluation.py` | Compare candidates/selected vs manual timestamps |
+| Web app frontend | `web/src/` | React + Vite + Tailwind v4 + shadcn/ui |
+| Web app backend | `web/backend/` | FastAPI on port 8000, `python -m web.backend` to start |
+| Web clip service | `web/backend/services/clip_service.py` | ffmpeg-based per-serve MP4 extraction |
+| Web detection services | `web/backend/services/detection_services.py` | Detector version routing (v1-v6) |
+
+## CONVENTIONS (THIS PROJECT)
+- **No pyproject.toml/setup.cfg** — Nix flake is the ONLY build/dep mechanism
+- **unittest** (not pytest) — run with `python -m unittest discover -s tests -v`
+- **Descriptive docstrings** on all public functions
+- **Tuple unpacking** for multi-return values
+- **meters/pixel** scale factor (not pixels/meter)
+
+## ANTI-PATTERNS (THIS PROJECT)
+- **DO NOT** use `pip install`, `requirements.txt`, or virtualenvs — use `nix develop`
+- **DO NOT** use pytest — this project uses unittest
+- **DO NOT** assume 3D reconstruction — single lateral view only (MVP)
+
+## UNIQUE STYLES
+- `display_frame` must equal `start_frame` in interactive mode (enforced in `run_analysis()`)
+- Template matching uses 0.5 confidence threshold
+- Smoothing window default is 3 frames; pass `smoothing_window=1` to disable
+- v6 detector is autonomous-only (never accepts `expected_serves`)
+- Backend entry point is `web/backend/main.py` (non-standard; typically `app.py`)
+
+## COMMANDS
+```bash
+# Development shell
+nix develop
+
+# Run analysis (interactive)
+python -m serve_analyzer.cli video.mp4 --real-distance 1.0
+
+# Generate speed graph (scripted, non-interactive)
+python -m serve_analyzer.plot_serve video.mp4 \
+    --cal-p1 100 200 \
+    --cal-p2 400 200 \
+    --real-distance 1.0 \
+    --ball-pos 320 240 \
+    --start-frame 50 \
+    --output speed_graph.png
+
+# Run tests
+python -m unittest discover -s tests -v
+
+# Jupyter notebooks
+jupyter notebook notebooks/
+
+# Web backend (local FastAPI)
+python -m web.backend    # starts on port 8000 (NOT python -m web.backend.app)
+
+# Web frontend dev
+cd web && npm run dev    # Vite on port 5173, proxies /api and /clips to :8000
+cd web && npm run build  # production build
+cd web && npm test -- --run  # vitest
+```
+
+## NOTES
+- MVP tool — approximate velocities only from single lateral view
+- Accuracy depends on calibration point quality and camera angle
+- Ball tracking uses simple template matching (not optical flow or ML)
+- Darwin/aarch64 only (hardcoded in flake.nix)
+- No CI/CD (no .github/workflows, no Makefile)
+
 **Commit:** e9e132f
 **Branch:** main
 
@@ -173,3 +278,33 @@ cd web && npm test -- --run  # vitest
 **Lesson:** For v2+ timing-refinement work, iterate with `--input-detections` cached from a known v1 run before attempting full video inference.
 **Context:** Full uncached v2 on 4K video can spend 10+ minutes regenerating the candidate pool; cached runs isolate refinement quality quickly.
 **Verify:** `python -m serve_analyzer.benchmark_detectors_v2 video.mov --timestamps-file timestamps_video.txt --input-detections benchmark_outputs/final_yolo_8_match_frame_skip_4/yolo_detections.json --expected-serves 8`
+
+### Temporal consistency filter requires dense positions
+**Lesson:** Apply temporal consistency filters (jump rejection, consecutive-detection gating) ONLY after interpolation or smoothing fills gaps. Raw YOLO detections are too sparse (25% hit rate) for any temporal logic to work.
+**Context:** Wasted 15+ iterations trying to filter raw detections; filter only works on interpolated/smoothed positions.
+**Verify:** `python -c "import json; d=json.load(open('run.json')); print(f'{sum(1 for p in d[\"raw_positions\"] if p)/len(d[\"raw_positions\"])*100:.0f}% detected')"` — if <40%, filter before interpolation will fail.
+
+### V2/V3 peak-scoring regression: contact != peak velocity
+**Lesson:** Contact frame scoring that maximizes speed/accel/motion finds the peak of ball flight, NOT the racket-ball contact moment. Contact happens when ball changes direction (toss apex), not when it moves fastest.
+**Context:** V2's scoring (0.38×speed + 0.26×accel + 0.24×motion - 0.12×distance) systematically shifted contacts 0.2-0.7s later, causing 3/8 serves to miss matching tolerance.
+**Verify:** Compare `v2_refined_frame_delta` in output — positive deltas indicate post-contact drift.
+
+### Kalman filter over-imputes with high max_imputed_run
+**Lesson:** Kalman filter with `max_imputed_run=12` fills 80%+ of frames with predictions on sparse YOLO detections, losing real detection signal. Keep imputation low or use simple interpolation instead.
+**Context:** V3's Kalman imputed 3363/4131 frames (81%), replacing real ball positions with model predictions; v1's simple interpolation performed better.
+**Verify:** Check `v3_kalman_stats.imputed_count` vs total frames — if >50%, filter is over-smoothing.
+
+### Evaluator must benchmark both candidates and selected_serves
+**Lesson:** Always benchmark detector output against both `candidates` pool AND `selected_serves` list; pool recall measures detection quality while selected recall measures selector quality. Use `--source candidates` and `--source selected_serves`.
+**Context:** Pool recall was 87.5-100% across versions but selected recall was sometimes 62.5% due to selector over-filtering or ranking false positives above real serves.
+**Verify:** `python -m serve_analyzer.serve_evaluation --source candidates ... && python -m serve_analyzer.serve_evaluation --source selected_serves ...` — compare matched counts.
+
+### Tune selector precision on existing pool before re-running detection
+**Lesson:** When the candidate pool already contains real serves but the selector over-selects, simulate parameter changes on the saved pool JSON first, then re-run only the final command once parameters converge. Avoid full-video re-runs for selector tuning.
+**Context:** V6 selected 15 serves for 8 real ones; iterating `min_gap_sec`, `relative_floor`, and artifact filters on `run_v6_auto.json` candidates converged in minutes vs 5+ min per full re-run.
+**Verify:** Load candidate pool in Python, apply `select_serves_v6` with changed params, compare selected times against manual timestamps.
+
+### Refine/rank candidates BEFORE selection, not after
+**Lesson:** Apply timing refinement, quality gating, and artifact filtering to the FULL candidate pool BEFORE running selection. Selecting then refining loses candidates without backfill and produces fewer selected serves than the pool supports.
+**Context:** V5 selected via v1 `select_serves()` first, then refined/gated the already-selected subset — removing candidates without replacing them. V6 correctly gates the full pool first.
+**Verify:** In any detector version, compare `len(candidates)` vs `len(selected_serves)` — if selected count drops after gating, the ordering is wrong.

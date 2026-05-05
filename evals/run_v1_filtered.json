@@ -1,0 +1,9 @@
+{
+  "video_path": "video.mov",
+  "expected_serves": 8,
+  "detector": "yolo",
+  "count_inferred": false,
+  "inferred_count": null,
+  "selected_serves": [],
+  "candidates": []
+}

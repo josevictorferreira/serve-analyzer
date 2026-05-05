@@ -133,8 +133,11 @@ def run_analysis(
     detection_frame_skip = detection_result["detection_frame_skip"]
     selected = detection_result["selected_serves"]
 
-    count_inferred = expected_serves is None
-    inferred_count: Optional[int] = len(selected) if count_inferred else None
+    result_expected_serves = detection_result.get("expected_serves", expected_serves)
+    count_inferred = detection_result.get("count_inferred", expected_serves is None)
+    inferred_count: Optional[int] = detection_result.get(
+        "inferred_count", len(selected) if count_inferred else None
+    )
 
     # Normalize numpy scalars to plain Python types for JSON safety
     if inferred_count is not None:
@@ -142,7 +145,7 @@ def run_analysis(
 
     result: Dict[str, Any] = {
         "video_path": str(video_path),
-        "expected_serves": expected_serves,
+        "expected_serves": result_expected_serves,
         "count_inferred": bool(count_inferred),
         "inferred_count": inferred_count,
         "detector": detection_result["detector"],

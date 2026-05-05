@@ -235,15 +235,21 @@ def evaluate_from_files(
     detection_json_path: str,
     timestamps_file: str,
     tolerance_sec: float,
+    source: str = "candidates",
 ) -> Dict[str, Any]:
     """Load detector output JSON plus timestamps file, produce match summary."""
+    if source not in {"candidates", "selected_serves"}:
+        raise ValueError("source must be 'candidates' or 'selected_serves'")
+
     with open(detection_json_path, encoding="utf-8") as handle:
         data = json.load(handle)
 
     if isinstance(data, list):
         candidates = data
     elif isinstance(data, dict):
-        candidates = data.get("candidates") or data.get("attempts") or []
+        candidates = data.get(source) or []
+        if source == "candidates" and not candidates:
+            candidates = data.get("attempts") or []
     else:
         raise ValueError(f"Unexpected JSON structure in {detection_json_path}")
 
@@ -253,6 +259,7 @@ def evaluate_from_files(
         {
             "detection_json": str(detection_json_path),
             "timestamps_file": str(timestamps_file),
+            "source": source,
             "targets_sec": [float(value) for value in target_times],
         }
     )
@@ -294,6 +301,12 @@ Examples:
         default=3.0,
         help="Max target-vs-detected delta for a match in seconds (default: 3.0)",
     )
+    parser.add_argument(
+        "--source",
+        choices=("candidates", "selected_serves"),
+        default="candidates",
+        help="Detector JSON list to evaluate (default: candidates)",
+    )
     parser.add_argument("--output", "-o", help="Output JSON file for results")
     return parser
 
@@ -310,6 +323,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.detection_json,
         args.timestamps_file,
         args.tolerance_sec,
+        source=args.source,
     )
 
     if args.output:

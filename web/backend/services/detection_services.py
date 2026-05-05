@@ -11,6 +11,10 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from serve_analyzer.serve_attempts import detect_serve_candidates, select_serves
 from serve_analyzer.serve_attempts_v2 import detect_serve_candidates_v2
+from serve_analyzer.serve_attempts_v3 import detect_serve_candidates_v3
+from serve_analyzer.serve_attempts_v4 import detect_serve_candidates_v4
+from serve_analyzer.serve_attempts_v5 import detect_serve_candidates_v5
+from serve_analyzer.serve_attempts_v6 import detect_serve_candidates_v6
 
 
 class ServeDetectorService(Protocol):
@@ -129,9 +133,205 @@ class V2ServeDetectorService:
         }
 
 
+class V3ServeDetectorService:
+    """V3 serve detector with Kalman, SG smoothing, audio onset, and refinement."""
+
+    version = "v3"
+    label = "V3 Kalman + SG + Audio"
+    description = "V2 refinement plus Kalman filtering, Savitzky-Golay smoothing, and audio onset cross-check."
+
+    def estimate_seconds_per_sample(self, tracking_detector: str) -> float:
+        """Return v3 runtime estimate including refinement overhead."""
+        return 0.85 if tracking_detector == "tracknetv2" else 0.40
+
+    def run(
+        self,
+        video_path: str,
+        expected_serves: Optional[int],
+        frame_skip: int,
+        tracking_config: Dict[str, Optional[str]],
+    ) -> Dict[str, Any]:
+        """Run v3 and normalize its output for the web backend."""
+        detection_result = detect_serve_candidates_v3(
+            video_path,
+            expected_serves=expected_serves,
+            detector=tracking_config["detector"] or "yolo",
+            model=tracking_config["model"] or "rjtp",
+            tracknet_weights=tracking_config["tracknet_weights"],
+            tracknet_device=tracking_config["tracknet_device"] or "cpu",
+            frame_skip=frame_skip,
+        )
+        selected = detection_result.get("selected_serves", [])
+        positions = detection_result.get("positions", [])
+
+        return {
+            "detector_version": self.version,
+            "detector_label": self.label,
+            "detector": detection_result.get("seed_detector")
+            or tracking_config["detector"]
+            or "yolo",
+            "selected_serves": selected,
+            "candidates": detection_result.get("candidates", selected),
+            "positions": positions,
+            "raw_positions": detection_result.get("raw_positions", positions),
+            "detection_frame_skip": detection_result.get("frame_skip", frame_skip),
+            "v3_kalman_stats": detection_result.get("v3_kalman_stats"),
+            "v3_motion_cue_count": detection_result.get("v3_motion_cue_count"),
+            "v3_audio_onset_count": detection_result.get("v3_audio_onset_count"),
+            "v3_audio_matched_serves": detection_result.get("v3_audio_matched_serves"),
+        }
+
+
+class V4ServeDetectorService:
+    """V4 serve detector with direction-change refinement and YOLO26n."""
+
+    version = "v4"
+    label = "V4 direction-change"
+    description = "V1 pipeline with toss apex contact refinement. 21%% better mean error and 26%% better max error than V1."
+
+    def estimate_seconds_per_sample(self, tracking_detector: str) -> float:
+        """Return v4 runtime estimate including refinement overhead."""
+        return 0.8 if tracking_detector == "tracknetv2" else 0.35
+
+    def run(
+        self,
+        video_path: str,
+        expected_serves: Optional[int],
+        frame_skip: int,
+        tracking_config: Dict[str, Optional[str]],
+    ) -> Dict[str, Any]:
+        """Run v4 and normalize its output for the web backend."""
+        detection_result = detect_serve_candidates_v4(
+            video_path,
+            expected_serves=expected_serves,
+            detector=tracking_config["detector"] or "yolo",
+            model=tracking_config["model"] or "rjtp",
+            tracknet_weights=tracking_config["tracknet_weights"],
+            tracknet_device=tracking_config["tracknet_device"] or "cpu",
+            frame_skip=frame_skip,
+        )
+        selected = detection_result.get("selected_serves", [])
+        positions = detection_result.get("positions", [])
+
+        return {
+            "detector_version": self.version,
+            "detector_label": self.label,
+            "detector": detection_result.get("seed_detector")
+            or tracking_config["detector"]
+            or "yolo",
+            "selected_serves": selected,
+            "candidates": detection_result.get("candidates", selected),
+            "positions": positions,
+            "raw_positions": detection_result.get("raw_positions", positions),
+            "detection_frame_skip": detection_result.get("frame_skip", frame_skip),
+            "v4_audio_onset_count": detection_result.get("v4_audio_onset_count"),
+            "v4_audio_matched_serves": detection_result.get("v4_audio_matched_serves"),
+        }
+
+
+class V5ServeDetectorService:
+    """V5 serve detector with hybrid timing and quality gating."""
+
+    version = "v5"
+    label = "V5 hybrid timing"
+    description = (
+        "V1 pipeline with hybrid contact timing and post-selection quality gating."
+    )
+
+    def estimate_seconds_per_sample(self, tracking_detector: str) -> float:
+        """Return v5 runtime estimate."""
+        return 0.35 if tracking_detector == "tracknetv2" else 0.32
+
+    def run(
+        self,
+        video_path: str,
+        expected_serves: Optional[int],
+        frame_skip: int,
+        tracking_config: Dict[str, Optional[str]],
+    ) -> Dict[str, Any]:
+        """Run v5 and normalize its output for the web backend."""
+        detection_result = detect_serve_candidates_v5(
+            video_path,
+            expected_serves=expected_serves,
+            detector=tracking_config["detector"] or "yolo",
+            model=tracking_config["model"] or "rjtp",
+            tracknet_weights=tracking_config["tracknet_weights"],
+            tracknet_device=tracking_config["tracknet_device"] or "cpu",
+            frame_skip=frame_skip,
+        )
+        selected = detection_result.get("selected_serves", [])
+        positions = detection_result.get("positions", [])
+
+        return {
+            "detector_version": self.version,
+            "detector_label": self.label,
+            "detector": detection_result.get("seed_detector")
+            or tracking_config["detector"]
+            or "yolo",
+            "selected_serves": selected,
+            "candidates": detection_result.get("candidates", selected),
+            "positions": positions,
+            "raw_positions": detection_result.get("raw_positions", positions),
+            "detection_frame_skip": detection_result.get("frame_skip", frame_skip),
+        }
+
+
+class V6ServeDetectorService:
+    """V6 serve detector with autonomous two-stage ensemble tracking."""
+
+    version = "v6"
+    label = "V6 two-stage ensemble"
+    description = "Autonomous v5-style timing with fine-window YOLO/HSV voting."
+
+    def estimate_seconds_per_sample(self, tracking_detector: str) -> float:
+        """Return v6 runtime estimate including fine-window rescans."""
+        return 0.55 if tracking_detector == "tracknetv2" else 0.45
+
+    def run(
+        self,
+        video_path: str,
+        expected_serves: Optional[int],
+        frame_skip: int,
+        tracking_config: Dict[str, Optional[str]],
+    ) -> Dict[str, Any]:
+        """Run v6 autonomously and normalize its output for the web backend."""
+        detection_result = detect_serve_candidates_v6(
+            video_path,
+            detector=tracking_config["detector"] or "yolo",
+            model=tracking_config["model"] or "rjtp",
+            tracknet_weights=tracking_config["tracknet_weights"],
+            tracknet_device=tracking_config["tracknet_device"] or "cpu",
+            frame_skip=frame_skip,
+        )
+        selected = detection_result.get("selected_serves", [])
+        positions = detection_result.get("positions", [])
+
+        return {
+            "detector_version": self.version,
+            "detector_label": self.label,
+            "detector": detection_result.get("seed_detector")
+            or tracking_config["detector"]
+            or "yolo",
+            "selected_serves": selected,
+            "candidates": detection_result.get("candidates", selected),
+            "positions": positions,
+            "raw_positions": detection_result.get("raw_positions", positions),
+            "detection_frame_skip": detection_result.get("frame_skip", frame_skip),
+            "expected_serves": None,
+            "count_inferred": True,
+            "inferred_count": detection_result.get("inferred_count", len(selected)),
+            "v6_windows": detection_result.get("v6_windows", []),
+            "v6_fine_detection_count": detection_result.get("v6_fine_detection_count"),
+        }
+
+
 _SERVICES: Dict[str, ServeDetectorService] = {
     "v1": V1ServeDetectorService(),
     "v2": V2ServeDetectorService(),
+    "v3": V3ServeDetectorService(),
+    "v4": V4ServeDetectorService(),
+    "v5": V5ServeDetectorService(),
+    "v6": V6ServeDetectorService(),
 }
 
 

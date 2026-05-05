@@ -12,6 +12,7 @@ import tempfile
 import unittest
 
 from serve_analyzer.serve_evaluation import (
+    evaluate_from_files,
     load_target_timestamps,
     main,
     match_targets_to_candidates,
@@ -252,7 +253,9 @@ class TestEvaluatorCLI(unittest.TestCase):
                 "post_contact_mean_mps": 46.7,
             },
         ]
-        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as dj:
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, suffix=".json", encoding="utf-8"
+        ) as dj:
             json.dump(candidates, dj)
             detection_json_path = dj.name
 
@@ -263,14 +266,18 @@ class TestEvaluatorCLI(unittest.TestCase):
         stdout = io.StringIO()
         try:
             import sys
+
             saved_stdout = sys.stdout
             sys.stdout = stdout
             try:
                 exit_code = main(
                     [
-                        "--detection-json", detection_json_path,
-                        "--timestamps-file", timestamps_path,
-                        "--tolerance-sec", "0.5",
+                        "--detection-json",
+                        detection_json_path,
+                        "--timestamps-file",
+                        timestamps_path,
+                        "--tolerance-sec",
+                        "0.5",
                     ]
                 )
             finally:
@@ -312,7 +319,9 @@ class TestEvaluatorCLI(unittest.TestCase):
                 "post_contact_mean_mps": 45.8,
             },
         ]
-        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as dj:
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, suffix=".json", encoding="utf-8"
+        ) as dj:
             json.dump(candidates, dj)
             detection_json_path = dj.name
 
@@ -328,9 +337,12 @@ class TestEvaluatorCLI(unittest.TestCase):
         try:
             exit_code = main(
                 [
-                    "--detection-json", detection_json_path,
-                    "--timestamps-file", timestamps_path,
-                    "--output", output_path,
+                    "--detection-json",
+                    detection_json_path,
+                    "--timestamps-file",
+                    timestamps_path,
+                    "--output",
+                    output_path,
                 ]
             )
 
@@ -342,6 +354,79 @@ class TestEvaluatorCLI(unittest.TestCase):
             os.remove(detection_json_path)
             os.remove(timestamps_path)
             os.remove(output_path)
+
+
+class TestEvaluatorSourceSelection(unittest.TestCase):
+    def test_evaluate_from_files_can_use_selected_serves(self):
+        payload = {
+            "candidates": [
+                {"contact_time_sec": 1.0, "post_contact_max_kmh": 100.0},
+            ],
+            "selected_serves": [
+                {"contact_time_sec": 5.0, "post_contact_max_kmh": 120.0},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, suffix=".json", encoding="utf-8"
+        ) as detection_file:
+            json.dump(payload, detection_file)
+            detection_json_path = detection_file.name
+
+        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as handle:
+            handle.write("Serve 1 - 00:05.000\n")
+            timestamps_path = handle.name
+
+        try:
+            result = evaluate_from_files(
+                detection_json_path,
+                timestamps_path,
+                tolerance_sec=0.5,
+                source="selected_serves",
+            )
+
+            self.assertEqual(result["source"], "selected_serves")
+            self.assertEqual(result["candidate_count"], 1)
+            self.assertEqual(result["matched_count"], 1)
+            self.assertAlmostEqual(result["attempts"][0]["detected_time_sec"], 5.0)
+        finally:
+            os.remove(detection_json_path)
+            os.remove(timestamps_path)
+
+    def test_empty_selected_serves_does_not_fall_back_to_attempts(self):
+        payload = {
+            "selected_serves": [],
+            "attempts": [
+                {"contact_time_sec": 5.0, "post_contact_max_kmh": 120.0},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, suffix=".json", encoding="utf-8"
+        ) as detection_file:
+            json.dump(payload, detection_file)
+            detection_json_path = detection_file.name
+
+        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as handle:
+            handle.write("Serve 1 - 00:05.000\n")
+            timestamps_path = handle.name
+
+        try:
+            result = evaluate_from_files(
+                detection_json_path,
+                timestamps_path,
+                tolerance_sec=0.5,
+                source="selected_serves",
+            )
+
+            self.assertEqual(result["source"], "selected_serves")
+            self.assertEqual(result["candidate_count"], 0)
+            self.assertEqual(result["matched_count"], 0)
+        finally:
+            os.remove(detection_json_path)
+            os.remove(timestamps_path)
+
+    def test_evaluate_from_files_rejects_unknown_source(self):
+        with self.assertRaises(ValueError):
+            evaluate_from_files("missing.json", "missing.txt", 3.0, source="bad")
 
 
 if __name__ == "__main__":
