@@ -15,6 +15,8 @@ from serve_analyzer.wall_outputs import (
     PLOT_FILENAMES,
     WallAnalysisResult,
     _flatten_warning_codes,
+    assemble_wall_analysis_result,
+    compute_confidence_score,
     serve_to_csv_row,
     to_json,
     write_csv,
@@ -262,7 +264,316 @@ class TestServeToCsvRowEdgeCases(unittest.TestCase):
         }
         row = serve_to_csv_row(serve)
         self.assertEqual(row[-1], "degraded_intrinsics;insufficient_track")
+        self.assertEqual(row[-1], "degraded_intrinsics;insufficient_track")
 
+
+# ---------------------------------------------------------------------------
+# Serialization finalization tests (Task 11)
+# ---------------------------------------------------------------------------
+
+
+class _FakeImpactResult:
+    """Minimal stand-in for WallImpactResult."""
+
+    def __init__(
+        self,
+        *,
+        impact_frame=60,
+        impact_pixel=(240.0, 240.0),
+        autonomous_frame=60,
+        autonomous_pixel=(240.0, 240.0),
+        candidate_track=None,
+        warnings=None,
+        confidence=None,
+    ):
+        self.impact_frame = impact_frame
+        self.impact_pixel = impact_pixel
+        self.autonomous_frame = autonomous_frame
+        self.autonomous_pixel = autonomous_pixel
+        self.candidate_track = candidate_track or [(f, 240.0, 240.0) for f in range(30, 61)]
+        self.warnings = warnings or []
+        self.confidence = confidence or {"track_length": 31, "method": "brightness_peak"}
+
+
+class _FakeSpeedResult:
+    """Minimal stand-in for PreWallSpeedResult."""
+
+    def __init__(
+        self,
+        *,
+        speed_m_s=45.0,
+        speed_km_h=162.0,
+        speed_mph=100.7,
+        uncertainty_m_s=2.5,
+        samples_used=30,
+        warnings=None,
+        metadata=None,
+    ):
+        self.speed_m_s = speed_m_s
+        self.speed_km_h = speed_km_h
+        self.speed_mph = speed_mph
+        self.uncertainty_m_s = uncertainty_m_s
+        self.samples_used = samples_used
+        self.warnings = warnings or []
+        self.metadata = metadata or {
+            "velocity_vector_wall_m_s": (40.0, 20.0),
+            "homography_residuals": {"reprojection_rms_px": 1.2},
+            "scale_factor_approx": 0.05,
+            "fps": 60.0,
+        }
+
+
+class _FakeProjectionResult:
+    """Minimal stand-in for CourtProjectionResult."""
+
+    def __init__(
+        self,
+        *,
+        landing_x_m=1.2,
+        landing_z_m=5.0,
+        in_service_box=True,
+        service_box_side="ad",
+        assumptions=None,
+        uncertainty=None,
+        warnings=None,
+    ):
+        self.landing_x_m = landing_x_m
+        self.landing_z_m = landing_z_m
+        self.in_service_box = in_service_box
+        self.service_box_side = service_box_side
+        self.assumptions = assumptions or {
+            "model": "gravity_only",
+            "contact_height_m": 2.8,
+            "serve_contact_distance_m": 6.11,
+            "wall_aligned_with_net": True,
+            "no_wall_continuation": True,
+        }
+        self.uncertainty = uncertainty or {
+            "landing_z_sensitivity_m": 0.8,
+            "landing_x_sensitivity_m": 0.3,
+        }
+        self.warnings = warnings or []
+
+
+class _FakeCalibration:
+    """Minimal stand-in for WallCalibration."""
+
+    def __init__(self, intrinsics=None):
+        self.intrinsics = intrinsics
+
+
+class TestWallSerialization(unittest.TestCase):
+    """Parseability and refused-projection retention tests."""
+
+    def test_parseable_json_and_csv_from_analysis_result(self):
+        """Build synthetic result, serialize JSON, verify 6 keys; CSV row matches columns."""
+        impact = _FakeImpactResult()
+        speed = _FakeSpeedResult()
+        projection = _FakeProjectionResult()
+        calibration = _FakeCalibration()
+
+        result = assemble_wall_analysis_result(
+            video_path="/tmp/test_video.mp4",
+            calibration=calibration,
+            impact_result=impact,
+            speed_result=speed,
+            projection_result=projection,
+            artifact_paths={
+                "annotated_video": "/tmp/test_video_annotated.mp4",
+                "plots": {"speed": "/tmp/test_video_serve01_speed.png"},
+            },
+        )
+
+        # --- JSON parseability ---
+        payload = result.to_json_dict()
+        self.assertEqual(
+            set(payload.keys()),
+            {"measured", "inferred", "assumed", "confidence", "warnings", "artifacts"},
+        )
+
+        # Round-trip through json.dumps / json.loads
+        serialized = json.dumps(payload)
+        parsed = json.loads(serialized)
+        self.assertEqual(set(parsed.keys()), set(payload.keys()))
+
+        # Verify measured contains expected fields
+        self.assertEqual(parsed["measured"]["video"], "test_video")
+        self.assertEqual(parsed["measured"]["impact_frame"], 60)
+        self.assertEqual(parsed["measured"]["impact_time_sec"], 1.0)  # 60/60
+        self.assertEqual(parsed["measured"]["raw_track_samples"], 31)
+
+        # Verify inferred contains speed and landing
+        self.assertEqual(parsed["inferred"]["speed_m_s"], 45.0)
+        self.assertEqual(parsed["inferred"]["landing_x_m"], 1.2)
+        self.assertTrue(parsed["inferred"]["in_service_box"])
+
+        # Verify confidence has aggregate_score
+        self.assertIn("aggregate_score", parsed["confidence"])
+        self.assertGreaterEqual(parsed["confidence"]["aggregate_score"], 0.0)
+        self.assertLessEqual(parsed["confidence"]["aggregate_score"], 1.0)
+
+        # Verify artifacts preserved None values
+        self.assertEqual(
+            parsed["artifacts"]["annotated_video"],
+            "/tmp/test_video_annotated.mp4",
+        )
+        self.assertEqual(
+            parsed["artifacts"]["plots"]["speed"],
+            "/tmp/test_video_serve01_speed.png",
+        )
+
+        # --- CSV row ---
+        serve = {
+            "video": result.measured["video"],
+            "serve_index": result.measured["serve_index"],
+            "impact_time_sec": result.measured["impact_time_sec"],
+            "impact_frame": result.measured["impact_frame"],
+            "wall_x_m": result.measured.get("wall_x_m"),
+            "wall_y_m": result.measured.get("wall_y_m"),
+            "speed_m_s": result.inferred["speed_m_s"],
+            "speed_km_h": result.inferred["speed_km_h"],
+            "speed_mph": result.inferred["speed_mph"],
+            "landing_x_m": result.inferred["landing_x_m"],
+            "landing_z_m": result.inferred["landing_z_m"],
+            "in_service_box": result.inferred["in_service_box"],
+            "confidence_score": result.confidence["aggregate_score"],
+            "warnings": result.warnings,
+        }
+        row = serve_to_csv_row(serve)
+        self.assertEqual(len(row), len(CSV_COLUMNS))
+
+        # Verify specific values
+        self.assertEqual(row[CSV_COLUMNS.index("video")], "test_video")
+        self.assertEqual(row[CSV_COLUMNS.index("speed_m_s")], 45.0)
+        self.assertEqual(row[CSV_COLUMNS.index("landing_x_m")], 1.2)
+        self.assertEqual(row[CSV_COLUMNS.index("warning_codes")], "")
+
+    def test_refused_projection_still_writes_row_with_warning(self):
+        """Refused projection produces CSV row with null fields and projection_refused warning."""
+        impact = _FakeImpactResult()
+        speed = _FakeSpeedResult(speed_m_s=None, speed_km_h=None, speed_mph=None)
+        projection = _FakeProjectionResult(
+            landing_x_m=None,
+            landing_z_m=None,
+            in_service_box=None,
+            service_box_side=None,
+            assumptions={"model": "gravity_only", "refused": True},
+            uncertainty={"landing_z_sensitivity_m": 0.0, "landing_x_sensitivity_m": 0.0},
+            warnings=["projection_refused"],
+        )
+        calibration = _FakeCalibration()
+
+        result = assemble_wall_analysis_result(
+            video_path="/tmp/test_video.mp4",
+            calibration=calibration,
+            impact_result=impact,
+            speed_result=speed,
+            projection_result=projection,
+        )
+
+        # JSON should still have 6 sections
+        payload = result.to_json_dict()
+        self.assertEqual(
+            set(payload.keys()),
+            {"measured", "inferred", "assumed", "confidence", "warnings", "artifacts"},
+        )
+
+        # Inferred landing fields should be None
+        self.assertIsNone(payload["inferred"]["landing_x_m"])
+        self.assertIsNone(payload["inferred"]["landing_z_m"])
+        self.assertIsNone(payload["inferred"]["in_service_box"])
+
+        # Warnings should contain projection_refused
+        self.assertIn("projection_refused", payload["warnings"])
+
+        # CSV row should exist with empty/null landing fields
+        serve = {
+            "video": result.measured["video"],
+            "serve_index": result.measured["serve_index"],
+            "impact_time_sec": result.measured["impact_time_sec"],
+            "impact_frame": result.measured["impact_frame"],
+            "wall_x_m": result.measured.get("wall_x_m"),
+            "wall_y_m": result.measured.get("wall_y_m"),
+            "speed_m_s": result.inferred["speed_m_s"],
+            "speed_km_h": result.inferred["speed_km_h"],
+            "speed_mph": result.inferred["speed_mph"],
+            "landing_x_m": result.inferred["landing_x_m"],
+            "landing_z_m": result.inferred["landing_z_m"],
+            "in_service_box": result.inferred["in_service_box"],
+            "confidence_score": result.confidence["aggregate_score"],
+            "warnings": result.warnings,
+        }
+        row = serve_to_csv_row(serve)
+        self.assertEqual(len(row), len(CSV_COLUMNS))
+
+        # landing fields should be None (rendered as "" by csv.writer)
+        self.assertIsNone(row[CSV_COLUMNS.index("landing_x_m")])
+        self.assertIsNone(row[CSV_COLUMNS.index("landing_z_m")])
+        self.assertIsNone(row[CSV_COLUMNS.index("in_service_box")])
+
+        # warning_codes should contain projection_refused
+        warning_cell = row[CSV_COLUMNS.index("warning_codes")]
+        self.assertIn("projection_refused", warning_cell)
+
+    def test_confidence_score_formula(self):
+        """Verify confidence score computation matches documented formula."""
+        # Perfect conditions: no uncertainty, no degraded, no refusal
+        score = compute_confidence_score(
+            speed_m_s=50.0,
+            uncertainty_m_s=0.0,
+            degraded_intrinsics=False,
+            has_refusal_warning=False,
+        )
+        self.assertEqual(score, 1.0)
+
+        # High uncertainty (100% of speed)
+        score = compute_confidence_score(
+            speed_m_s=50.0,
+            uncertainty_m_s=50.0,
+            degraded_intrinsics=False,
+            has_refusal_warning=False,
+        )
+        self.assertEqual(score, 0.5)  # 1.0 - 0.5*0.5 = 0.5
+
+        # Degraded intrinsics only
+        score = compute_confidence_score(
+            speed_m_s=50.0,
+            uncertainty_m_s=0.0,
+            degraded_intrinsics=True,
+            has_refusal_warning=False,
+        )
+        self.assertEqual(score, 0.7)  # 1.0 - 0.3 = 0.7
+
+        # Refusal warning only
+        score = compute_confidence_score(
+            speed_m_s=50.0,
+            uncertainty_m_s=0.0,
+            degraded_intrinsics=False,
+            has_refusal_warning=True,
+        )
+        self.assertEqual(score, 0.8)  # 1.0 - 0.2 = 0.8
+
+        # All penalties combined
+        score = compute_confidence_score(
+            speed_m_s=50.0,
+            uncertainty_m_s=50.0,
+            degraded_intrinsics=True,
+            has_refusal_warning=True,
+        )
+        self.assertEqual(score, 0.0)  # 1.0 - 0.25 - 0.3 - 0.2 = 0.25, clamped to 0
+
+        # None speed (refused)
+        score = compute_confidence_score(
+            speed_m_s=None,
+            uncertainty_m_s=0.0,
+            degraded_intrinsics=False,
+            has_refusal_warning=False,
+        )
+        self.assertEqual(score, 1.0)
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 if __name__ == "__main__":
     unittest.main()

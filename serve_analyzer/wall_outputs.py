@@ -52,6 +52,195 @@ class WallAnalysisResult:
     warnings: List[str] = field(default_factory=list)
     artifacts: Dict[str, Any] = field(default_factory=dict)
 
+    def to_json_dict(self) -> Dict[str, Any]:
+        """Return a JSON-serializable dict with exactly the 6 required sections.
+
+        Returns:
+            Dict with keys ``measured``, ``inferred``, ``assumed``, ``confidence``,
+            ``warnings``, ``artifacts`` — no extras.
+        """
+        return {
+            "measured": self.measured,
+            "inferred": self.inferred,
+            "assumed": self.assumed,
+            "confidence": self.confidence,
+            "warnings": list(self.warnings),
+            "artifacts": self.artifacts,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Confidence score computation
+# ---------------------------------------------------------------------------
+
+
+def _clamp(value: float, min_val: float, max_val: float) -> float:
+    """Clamp *value* to the inclusive range [*min_val*, *max_val*]."""
+    return max(min_val, min(value, max_val))
+
+
+def compute_confidence_score(
+    speed_m_s: float | None,
+    uncertainty_m_s: float,
+    degraded_intrinsics: bool,
+    has_refusal_warning: bool,
+) -> float:
+    """Compute an aggregate confidence score in the range [0, 1].
+
+    Formula (documented for reproducibility)::
+
+        base = 1.0
+        if speed_m_s is not None and speed_m_s > 0:
+            base -= clamp(uncertainty_m_s / speed_m_s, 0, 1) * 0.5
+        if degraded_intrinsics:
+            base -= 0.3
+        if has_refusal_warning:
+            base -= 0.2
+        score = clamp(base, 0, 1)
+
+    Args:
+        speed_m_s: Estimated speed (m/s), or ``None`` when refused.
+        uncertainty_m_s: Combined speed uncertainty (m/s).
+        degraded_intrinsics: Whether ``degraded_intrinsics`` warning is present.
+        has_refusal_warning: Whether any refusal warning (e.g.
+            ``projection_refused``) is present.
+
+    Returns:
+        Confidence score clamped to [0, 1].
+    """
+    base = 1.0
+    if speed_m_s is not None and speed_m_s > 0:
+        base -= _clamp(uncertainty_m_s / speed_m_s, 0.0, 1.0) * 0.5
+    if degraded_intrinsics:
+        base -= 0.3
+    if has_refusal_warning:
+        base -= 0.2
+    return _clamp(base, 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# Result assembly
+# ---------------------------------------------------------------------------
+
+
+def assemble_wall_analysis_result(
+    video_path: str | Path,
+    calibration: Any,
+    impact_result: Any,
+    speed_result: Any,
+    projection_result: Any,
+    *,
+    artifact_paths: Dict[str, Any] | None = None,
+) -> WallAnalysisResult:
+    """Compose a ``WallAnalysisResult`` from the 6 pipeline stages.
+
+    This function wires the result contracts into the orchestration pipeline.
+    It populates all 6 sections (measured, inferred, assumed, confidence,
+    warnings, artifacts) from the constituent result objects.
+
+    Args:
+        video_path: Path to the source video (used for stem naming).
+        calibration: A ``WallCalibration`` instance (used for intrinsics checks).
+        impact_result: A ``WallImpactResult`` with impact frame/pixel data.
+        speed_result: A ``PreWallSpeedResult`` with speed estimates.
+        projection_result: A ``CourtProjectionResult`` with landing projection.
+        artifact_paths: Optional dict like
+            ``{"annotated_video": Path | None, "plots": {"speed": Path | None, ...}}``.
+            ``None`` values are preserved.
+
+    Returns:
+        A fully populated ``WallAnalysisResult``.
+    """
+    video_path = Path(video_path)
+    video_stem = video_path.stem
+
+    # --- Measured ---
+    fps = getattr(speed_result, "metadata", {}).get("fps", None)
+    impact_frame = impact_result.impact_frame
+    impact_time_sec = None
+    if impact_frame is not None and fps is not None and fps > 0:
+        impact_time_sec = impact_frame / fps
+
+    measured: Dict[str, Any] = {
+        "video": video_stem,
+        "serve_index": 0,
+        "impact_time_sec": impact_time_sec,
+        "impact_frame": impact_frame,
+        "autonomous_frame": impact_result.autonomous_frame,
+        "autonomous_pixel": impact_result.autonomous_pixel,
+        "impact_pixel": impact_result.impact_pixel,
+        "wall_x_m": None,
+        "wall_y_m": None,
+        "calibration_reprojection_rms_px": None,
+        "raw_track_samples": len(impact_result.candidate_track),
+    }
+
+    # Pull reprojection RMS from speed_result metadata if available.
+    homography_residuals = speed_result.metadata.get("homography_residuals", {})
+    if homography_residuals:
+        measured["calibration_reprojection_rms_px"] = homography_residuals.get(
+            "reprojection_rms_px"
+        )
+
+    # --- Inferred ---
+    inferred: Dict[str, Any] = {
+        "speed_m_s": speed_result.speed_m_s,
+        "speed_km_h": speed_result.speed_km_h,
+        "speed_mph": speed_result.speed_mph,
+        "speed_uncertainty_m_s": speed_result.uncertainty_m_s,
+        "landing_x_m": projection_result.landing_x_m,
+        "landing_z_m": projection_result.landing_z_m,
+        "in_service_box": projection_result.in_service_box,
+        "service_box_side": projection_result.service_box_side,
+        "sensitivities": projection_result.uncertainty,
+    }
+
+    # --- Assumed ---
+    assumed = dict(projection_result.assumptions)
+
+    # --- Warnings (deduplicated, sorted) ---
+    all_warnings = sorted(
+        set(impact_result.warnings + speed_result.warnings + projection_result.warnings)
+    )
+
+    # --- Confidence ---
+    degraded_intrinsics = (
+        calibration.intrinsics is not None
+        and calibration.intrinsics.source == "approx_exif"
+    )
+    has_refusal = any(
+        w in all_warnings for w in ("projection_refused", "insufficient_track")
+    )
+    confidence_score = compute_confidence_score(
+        speed_m_s=speed_result.speed_m_s,
+        uncertainty_m_s=speed_result.uncertainty_m_s,
+        degraded_intrinsics=degraded_intrinsics,
+        has_refusal_warning=has_refusal,
+    )
+
+    confidence: Dict[str, Any] = {
+        "aggregate_score": confidence_score,
+        "impact_confidence": impact_result.confidence,
+        "speed_uncertainty_m_s": speed_result.uncertainty_m_s,
+        "samples_used": speed_result.samples_used,
+        "degraded_intrinsics": degraded_intrinsics,
+    }
+
+    # --- Artifacts ---
+    artifacts: Dict[str, Any] = {"annotated_video": None, "plots": {}}
+    if artifact_paths is not None:
+        artifacts["annotated_video"] = artifact_paths.get("annotated_video")
+        artifacts["plots"] = dict(artifact_paths.get("plots", {}))
+
+    return WallAnalysisResult(
+        measured=measured,
+        inferred=inferred,
+        assumed=assumed,
+        confidence=confidence,
+        warnings=all_warnings,
+        artifacts=artifacts,
+    )
+
 
 # ---------------------------------------------------------------------------
 # JSON serialization
@@ -72,14 +261,7 @@ def to_json(result: WallAnalysisResult) -> Dict[str, Any]:
         Dict with keys ``measured``, ``inferred``, ``assumed``, ``confidence``,
         ``warnings``, ``artifacts`` — no extras.
     """
-    return {
-        "measured": result.measured,
-        "inferred": result.inferred,
-        "assumed": result.assumed,
-        "confidence": result.confidence,
-        "warnings": list(result.warnings),
-        "artifacts": result.artifacts,
-    }
+    return result.to_json_dict()
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +283,7 @@ def _flatten_warning_codes(codes: List[str]) -> str:
     Returns:
         A semicolon-joined string of codes in sorted order.
     """
-    return ";".join(sorted(codes))
+    return ";".join(sorted(set(codes)))
 
 
 def serve_to_csv_row(serve: Dict[str, Any]) -> Tuple[Any, ...]:
