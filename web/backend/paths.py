@@ -55,3 +55,22 @@ def clean_temp_clips() -> None:
 def make_temp_video_path() -> str:
     """Return a unique temp path for an uploaded video."""
     return os.path.join(get_session_temp_dir(), f"upload_{os.urandom(4).hex()}.mp4")
+
+
+def get_wall_temp_dir() -> str:
+    """Return the wall-specific temp subdirectory inside the session temp dir."""
+    wall = os.path.join(get_session_temp_dir(), "wall")
+    os.makedirs(wall, exist_ok=True)
+    return wall
+
+
+def make_wall_video_path(video_id: str, ext: str = ".mp4") -> str:
+    """Return a unique temp path for a staged wall video."""
+    return os.path.join(get_wall_temp_dir(), f"wall_{video_id}{ext}")
+
+
+def get_wall_output_dir(video_id: str) -> str:
+    """Return the output directory for wall analysis artifacts."""
+    out = os.path.join(get_wall_temp_dir(), "output", video_id)
+    os.makedirs(out, exist_ok=True)
+    return out

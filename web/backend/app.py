@@ -13,6 +13,7 @@ from .paths import (
     clean_temp_clips,
     get_clips_dir,
     get_session_temp_dir,
+    get_wall_temp_dir,
     make_temp_video_path,
 )
 from .schemas import (
@@ -26,7 +27,16 @@ from .schemas import (
     JobStatus,
     TrainingEnvironmentResponse,
 )
-from .state import is_job_active, reset_state, set_state, JobPhase
+from .state import (
+    get_wall_state,
+    is_any_job_active,
+    reset_state,
+    set_wall_state,
+    set_state,
+    JobPhase,
+    WallJobPhase,
+    reset_wall_state,
+)
 from .services.analysis_service import run_analysis
 from .services import annotation_service
 from .services.clip_service import generate_clips
@@ -34,6 +44,17 @@ from .services.detection_services import (
     default_detector_version,
     list_detector_versions,
     resolve_detector_version,
+)
+from .wall_schemas import (
+    WallJobStatus,
+    WallJobResetResponse,
+    WallVideoMetadataResponse,
+    WallVideoUploadResponse,
+)
+from .services.wall_session_service import (
+    clear_session,
+    get_session,
+    stage_video,
 )
 
 app = FastAPI(title="Serve Analyzer API")
@@ -85,7 +106,7 @@ async def analyze(
     video: UploadFile = File(...), detector_version: str | None = Form(None)
 ) -> dict[str, str]:
     """Accept a video upload and start analysis in the background."""
-    if is_job_active():
+    if is_any_job_active():
         raise HTTPException(status_code=409, detail="A job is already active")
     if video.content_type and video.content_type not in ALLOWED_TYPES:
         raise HTTPException(
@@ -126,7 +147,6 @@ async def analyze(
         }
     )
 
-    # Start real analysis in a background thread (CPU-blocking).
     threading.Thread(
         target=_run_analysis_thread,
         args=(temp_video, selected_detector_version),
@@ -386,3 +406,117 @@ async def serve_clip(filename: str) -> FileResponse:
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Clip not found")
     return FileResponse(file_path)
+
+
+# Wall analysis routes (Task 1 — session staging)
+# ============================================================
+
+
+@app.get("/api/wall/job", response_model=WallJobStatus)
+async def get_wall_job() -> dict[str, Any]:
+    """Return current wall job state."""
+    return get_wall_state()
+
+
+@app.post("/api/wall/video", response_model=WallVideoUploadResponse)
+async def upload_wall_video(video: UploadFile = File(...)) -> dict[str, Any]:
+    """Stage a wall-practice video upload and return metadata."""
+    if is_any_job_active():
+        raise HTTPException(status_code=409, detail="A job is already active")
+    if video.content_type and video.content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported file type: {video.content_type}"
+        )
+    ext = os.path.splitext(video.filename or "")[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported file extension: {ext}"
+        )
+
+    reset_wall_state()
+    set_wall_state({"status": WallJobPhase.UPLOADING})
+    temp_video = make_temp_video_path()
+    try:
+        with open(temp_video, "wb") as f:
+            shutil.copyfileobj(video.file, f)
+    except Exception as exc:
+        set_wall_state({"status": WallJobPhase.ERROR, "error": str(exc)})
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save upload: {exc}"
+        ) from exc
+    finally:
+        video.file.close()
+
+    try:
+        state = stage_video(temp_video, video.filename or f"upload{ext}")
+    except Exception as exc:
+        set_wall_state({"status": WallJobPhase.ERROR, "error": str(exc)})
+        try:
+            os.unlink(temp_video)
+        except OSError:
+            pass
+        raise HTTPException(
+            status_code=500, detail=f"Failed to stage video: {exc}"
+        ) from exc
+
+    set_wall_state({"status": WallJobPhase.DONE, "phase": None, "error": None})
+    meta = state.metadata
+    return {
+        "video_id": state.video_id,
+        "video_url": state.video_url,
+        "filename": meta.filename,
+        "duration_sec": meta.duration_sec,
+        "fps": meta.fps,
+        "frame_count": meta.frame_count,
+        "width": meta.width,
+        "height": meta.height,
+    }
+
+
+@app.get("/api/wall/video/{video_id}")
+async def get_wall_video(video_id: str) -> FileResponse:
+    """Serve the staged wall video file by video_id."""
+    session = get_session()
+    if session is None or session.video_id != video_id:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return FileResponse(session.video_path)
+
+
+@app.get(
+    "/api/wall/video/{video_id}/metadata", response_model=WallVideoMetadataResponse
+)
+async def get_wall_video_metadata(video_id: str) -> dict[str, Any]:
+    """Return metadata for the staged wall video."""
+    session = get_session()
+    if session is None or session.video_id != video_id:
+        raise HTTPException(status_code=404, detail="Video not found")
+    meta = session.metadata
+    return {
+        "video_id": session.video_id,
+        "filename": meta.filename,
+        "duration_sec": meta.duration_sec,
+        "fps": meta.fps,
+        "frame_count": meta.frame_count,
+        "width": meta.width,
+        "height": meta.height,
+    }
+
+
+@app.post("/api/wall/job/reset", response_model=WallJobResetResponse)
+async def reset_wall_job() -> dict[str, str]:
+    """Reset wall job state, delete staged video, and clean wall artifacts."""
+    clear_session()
+    wall_temp = get_wall_temp_dir()
+    if os.path.isdir(wall_temp):
+        for entry in os.listdir(wall_temp):
+            path = os.path.join(wall_temp, entry)
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+            except OSError:
+                pass
+
+    reset_wall_state()
+    return {"status": "reset", "message": "Wall job reset successfully"}
