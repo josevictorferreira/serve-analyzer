@@ -98,6 +98,64 @@ class PreWallSpeedResult:
     metadata: Dict
 
 
+@dataclass(frozen=True)
+class CourtProjectionResult:
+    """Regulation-court landing projection from a pre-wall speed estimate.
+
+    Interprets the projected landing as the equivalent no-wall ball landing
+    on a real tennis court (not wall rebound).  Gravity-only; no spin or drag.
+
+    Coordinate conventions
+    --------------------
+    Court frame:
+        - Origin at the net centerline.
+        - ``landing_x_m``: lateral offset from centerline.  Positive = ad side
+          (camera-left if camera faces the wall from behind the net).
+        - ``landing_z_m``: distance from the net along the court length.
+          Positive toward the server's baseline (camera side).
+          Server baseline at z = COURT_LENGTH_M / 2 = 11.885 m.
+        - Net at z = 0.
+
+    Assumptions
+    -----------
+    - Wall is aligned with the net (court z = 0).
+    - The ball at serve contact is at height ``serve_contact_height_m`` and
+      horizontal distance ``serve_contact_distance_m`` from the net along z.
+    - Monocular assumption: horizontal velocity is projected onto the z-axis
+      (wall-perpendicular); lateral velocity vx is taken from the wall-frame
+      measurement.
+
+    Attributes
+    ----------
+    landing_x_m
+        Lateral offset from court centerline (m).  Positive = ad side.
+        ``None`` when projection refused.
+    landing_z_m
+        Distance from net along court length (m).  Positive toward baseline.
+        ``None`` when projection refused.
+    in_service_box
+        ``True`` when landing falls inside the regulation service box.
+        ``None`` when projection refused.
+    service_box_side
+        ``"deuce"`` | ``"ad"`` | ``None``.
+    assumptions
+        Dict of modelling assumptions used.
+    uncertainty
+        Dict with ``landing_z_sensitivity_m`` and ``landing_x_sensitivity_m``.
+    warnings
+        List of warning-code strings.
+    """
+
+    landing_x_m: Optional[float]
+    landing_z_m: Optional[float]
+    in_service_box: Optional[bool]
+    service_box_side: Optional[str]
+    assumptions: Dict
+    uncertainty: Dict
+    warnings: List[str]
+
+
+
 def _find_ball_in_frame(
     gray: np.ndarray,
     wall_x_px: float,
@@ -523,4 +581,220 @@ def estimate_pre_wall_speed(
         samples_used=len(pre_track),
         warnings=warnings,
         metadata=metadata,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Court projection
+# ---------------------------------------------------------------------------
+
+
+def _compute_landing(
+    h0: float, vz0: float, vx0: float, vy0: float,
+    gravity_m_s2: float,
+) -> Tuple[float, float]:
+    """Solve gravity-only projectile for time-of-flight and return (x, z).
+
+    y(t) = h0 + vy0*t - 0.5*g*t^2 = 0
+    t* = (vy0 + sqrt(vy0^2 + 2*g*h0)) / g
+    x(t*) = vx0 * t*
+    z(t*) = vz0 * t*
+    """
+    discriminant = vy0 ** 2 + 2.0 * gravity_m_s2 * h0
+    t_flight = (vy0 + float(np.sqrt(max(0.0, discriminant)))) / gravity_m_s2
+    return vx0 * t_flight, vz0 * t_flight
+
+
+def _classify_service_box(
+    landing_x_m: float, landing_z_m: float
+) -> Tuple[bool, Optional[str]]:
+    """Classify landing relative to the regulation service box.
+
+    Service box bounds (server's side):
+        z ∈ [0, SERVICE_BOX_DEPTH_M]  (net → service line)
+        |x| ≤ SERVICE_BOX_WIDTH_M
+    """
+    from serve_analyzer.wall_calibration import (
+        SERVICE_BOX_DEPTH_M,
+        SERVICE_BOX_WIDTH_M,
+    )
+
+    in_box = (
+        0.0 <= landing_z_m <= SERVICE_BOX_DEPTH_M
+        and abs(landing_x_m) <= SERVICE_BOX_WIDTH_M
+    )
+    side: Optional[str] = None
+    if in_box:
+        side = "ad" if landing_x_m > 0 else "deuce"
+    return in_box, side
+
+
+def project_to_court(
+    speed_result: PreWallSpeedResult,
+    calibration: WallCalibration,
+    *,
+    gravity_m_s2: float = 9.81,
+) -> CourtProjectionResult:
+    """Project a serve onto a regulation tennis court (gravity-only, no wall).
+
+    Uses the inferred pre-wall speed and velocity vector to compute the
+    equivalent no-wall landing position on a regulation court.  Refuses
+    projection (returns all-``None`` geometry + ``"projection_refused"`` warning)
+    when speed is unavailable or calibration is incomplete.
+
+    Parameters
+    ----------
+    speed_result
+        A :class:`PreWallSpeedResult` from :func:`estimate_pre_wall_speed`.
+    calibration
+        A :class:`WallCalibration` with ``serve_contact_height_m`` set.
+    gravity_m_s2
+        Gravitational acceleration (default 9.81 m/s^2).
+
+    Returns
+    -------
+    CourtProjectionResult
+        Landing coordinates in the court frame, service-box classification,
+        modelling assumptions, sensitivity analysis, and warnings.
+
+    Notes
+    -----
+    **Monocular vz assumption**: With a single lateral camera we cannot
+    observe depth velocity directly.  We assume the ball travels primarily
+    along the wall-perpendicular (z) axis.  Given the measured speed
+    magnitude and the wall-frame (vx, vy), we compute:
+
+    .. code-block:: python
+
+        vz = sqrt(speed^2 - vx^2 - vy^2)
+
+    This vz is the speed toward the wall.  For the no-wall continuation
+    the ball would have been *traveling toward* the wall from the server,
+    so in the court frame (z positive toward server), the ball at contact
+    is moving *in the negative-z direction* (toward net/wall).  We set
+    ``vz0 = -vz`` so that ``z(t) = z_contact + vz0 * t`` decreases from
+    the contact point toward (and past) the net.
+
+    **Wall = net assumption**: We assume the wall is aligned with the net
+    (court z = 0).  The serve contact is at
+    ``z_contact = calibration.serve_contact_distance_m`` from the net.
+    """
+    from serve_analyzer.wall_calibration import (
+        COURT_LENGTH_M,
+        SERVICE_BOX_DEPTH_M,
+        SERVICE_BOX_WIDTH_M,
+    )
+
+    warnings: List[str] = []
+
+    # --- Refusal checks ---
+    if speed_result.speed_m_s is None:
+        return CourtProjectionResult(
+            landing_x_m=None,
+            landing_z_m=None,
+            in_service_box=None,
+            service_box_side=None,
+            assumptions={"model": "gravity_only", "refused": True},
+            uncertainty={"landing_z_sensitivity_m": 0.0, "landing_x_sensitivity_m": 0.0},
+            warnings=["projection_refused"],
+        )
+
+    if "insufficient_track" in speed_result.warnings:
+        return CourtProjectionResult(
+            landing_x_m=None,
+            landing_z_m=None,
+            in_service_box=None,
+            service_box_side=None,
+            assumptions={"model": "gravity_only", "refused": True},
+            uncertainty={"landing_z_sensitivity_m": 0.0, "landing_x_sensitivity_m": 0.0},
+            warnings=["projection_refused"],
+        )
+
+    if calibration.serve_contact_height_m is None:
+        return CourtProjectionResult(
+            landing_x_m=None,
+            landing_z_m=None,
+            in_service_box=None,
+            service_box_side=None,
+            assumptions={"model": "gravity_only", "refused": True},
+            uncertainty={"landing_z_sensitivity_m": 0.0, "landing_x_sensitivity_m": 0.0},
+            warnings=["projection_refused"],
+        )
+
+    # --- Extract velocity components ---
+    vel = speed_result.metadata.get("velocity_vector_wall_m_s", (0.0, 0.0))
+    vx_wall = float(vel[0])  # wall-frame lateral velocity
+    vy_wall = float(vel[1])  # wall-frame vertical velocity
+    speed = float(speed_result.speed_m_s)
+
+    # Monocular vz assumption: project remaining speed onto z-axis
+    vz_sq = max(0.0, speed ** 2 - vx_wall ** 2 - vy_wall ** 2)
+    vz_toward_wall = float(np.sqrt(vz_sq))
+
+    # Court frame setup
+    h0 = float(calibration.serve_contact_height_m)
+    z_contact = float(calibration.serve_contact_distance_m)
+
+    # In court frame, ball at contact moves toward net (z decreasing)
+    # vz0 is negative (toward wall/net direction)
+    vz0 = -vz_toward_wall
+    vx0 = vx_wall  # lateral velocity carries over directly
+    vy0 = vy_wall  # vertical velocity carries over directly
+
+    # --- Solve trajectory ---
+    landing_x, landing_z_rel = _compute_landing(h0, vz0, vx0, vy0, gravity_m_s2)
+    landing_z = z_contact + landing_z_rel  # shift by contact position
+
+    # --- Classify service box ---
+    in_service_box, service_box_side = _classify_service_box(landing_x, landing_z)
+
+    # --- Sensitivity analysis ---
+    # ±10% speed
+    z_plus, x_plus = [], []
+    for speed_factor in (0.9, 1.1):
+        s = speed * speed_factor
+        vz_sq_s = max(0.0, s ** 2 - vx_wall ** 2 - vy_wall ** 2)
+        vz_s = float(np.sqrt(vz_sq_s))
+        lx_s, lz_rel_s = _compute_landing(h0, -vz_s, vx0, vy0, gravity_m_s2)
+        z_plus.append(z_contact + lz_rel_s)
+        x_plus.append(lx_s)
+
+    # ±0.1 m contact height
+    for h_delta in (-0.1, 0.1):
+        lx_h, lz_rel_h = _compute_landing(h0 + h_delta, vz0, vx0, vy0, gravity_m_s2)
+        z_plus.append(z_contact + lz_rel_h)
+        x_plus.append(lx_h)
+
+    landing_z_sensitivity_m = (max(z_plus) - min(z_plus)) / 2.0
+    landing_x_sensitivity_m = (max(x_plus) - min(x_plus)) / 2.0
+
+    # --- Build assumptions dict ---
+    assumptions: Dict = {
+        "model": "gravity_only",
+        "contact_height_m": h0,
+        "serve_contact_distance_m": z_contact,
+        "no_wall_continuation": True,
+        "wall_aligned_with_net": True,
+        "court_length_m": COURT_LENGTH_M,
+        "service_box_depth_m": SERVICE_BOX_DEPTH_M,
+        "service_box_width_m": SERVICE_BOX_WIDTH_M,
+        "monocular_vz_assumption": (
+            "vz = sqrt(speed^2 - vx^2 - vy^2); "
+            "horizontal velocity projected onto wall-perpendicular z-axis"
+        ),
+    }
+
+    uncertainty: Dict = {
+        "landing_z_sensitivity_m": landing_z_sensitivity_m,
+        "landing_x_sensitivity_m": landing_x_sensitivity_m,
+    }
+
+    return CourtProjectionResult(
+        landing_x_m=landing_x,
+        landing_z_m=landing_z,
+        in_service_box=in_service_box,
+        service_box_side=service_box_side,
+        assumptions=assumptions,
+        uncertainty=uncertainty,
+        warnings=warnings,
     )
