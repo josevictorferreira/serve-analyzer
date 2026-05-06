@@ -1,0 +1,18 @@
+
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+Manual correction test:
+  impact_frame=55 (expected 55)
+  impact_pixel=(230.0, 120.0) (expected (230.0, 120.0))
+  autonomous_frame=60 (populated, not 55)
+  autonomous_pixel=(240.0, 120.0)
+  warnings=['manual_correction_used']
+  manual_correction_used in warnings: True
+  ALL ASSERTIONS PASSED

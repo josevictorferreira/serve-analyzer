@@ -89,3 +89,56 @@
 - Degenerate image or world point sets raise `WallCalibrationError("calibration_degenerate", details)` before OpenCV fitting.
 - Test invocation that works with this repo layout: `nix develop --command python -m unittest discover -s tests -p "test_wall_calibration.py" -v` (16 tests after Task 2).
 - All wall tests passed with `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v` (29 tests).
+
+## 2026-05-05 — Task 5: Manual calibration CLI
+
+### CLI Design
+- Used `--mode {setup,override}` flag instead of argparse subparsers because subparsers do not support default subcommands in Python 3.13.
+- `--interactive` defaults to `False` so tests never open OpenCV windows.
+- `--serve-contact-height` and `--wall-points` are validated manually (not via argparse `required=True`) so missing values produce structured JSON errors on stderr with exit code 2.
+- `--serve-contact-distance` and `--camera-wall-distance` use `default=None` in argparse; defaults (6.11 / 1.57) are applied only in setup mode so override mode does not emit unwanted keys.
+- Intrinsics block is NOT emitted by the CLI because non-'none' sources require `camera_matrix` and `dist_coeffs` that cannot be supplied via flags. Users inject intrinsics manually if needed.
+
+### Error Handling
+- `WallCalibrationError` is caught in `main()` and converted to `{"error": ..., "code": ...}` on stderr + exit code 2.
+- `SystemExit` from argparse (e.g. `--help`) is re-raised so callers see correct exit codes.
+
+### Test Results
+- 9 new tests in `TestWallCalibrationCli` — all pass.
+- 41 total wall tests (`test_wall_*.py`) — all pass, zero regressions.
+- Evidence saved to `.sisyphus/evidence/task-5-cli-write.txt` and `task-5-cli-error.txt`.
+
+### Exit Codes Observed
+- `--help`: exit 0
+- Missing `--serve-contact-height`: exit 2, stderr `{"error": "Missing required field: serve_contact_height_m", "code": "missing_serve_contact_height"}`
+- Only 3 wall points: exit 2, stderr `{"error": "Expected at least 4 wall_reference_points, got 3", "code": "insufficient_wall_points"}`
+
+## 2026-05-05 — Task 6: Autonomous wall-impact detection + manual correction
+
+### Symbols Created
+- `WallImpactResult` frozen dataclass: `impact_frame`, `impact_pixel`, `autonomous_frame`, `autonomous_pixel`, `candidate_track`, `warnings`, `confidence`
+- `detect_wall_impact(video_path, calibration, *, serve_window, manual_correction)` → `WallImpactResult`
+- `_find_ball_in_frame(gray, wall_x_px, search_half_width, ...)` → Optional[Tuple[float, float]]
+
+### Algorithm
+- Brightness-threshold blob detection near calibrated wall x (threshold=200 on grayscale)
+- `wall_x_px` derived from right-most pixel coordinate in calibration reference points
+- Search band: ±max(60, width*0.15) pixels around wall_x_px
+- Impact selection: frame where ball centroid is closest to wall_x_px
+- Brightness discontinuity refinement within ±5 frames of initial candidate
+- Manual correction overlays final values while preserving autonomous candidate
+
+### Test Parameters
+- Tests 1 & 2: `width=640, height=240, fps=60, total_frames=90, impact_frame=60, ball_speed_px_per_frame=3.0, wall_x_px=240`
+  - `start_x = 240 - 3*60 = 60` (well within bounds)
+- Test 3 (insufficient track): same params with `blur_sigma=10.0` → ball peak brightness drops below 200 threshold
+
+### Pitfalls
+- `generate_wall_impact_video` raises ValueError if `start_x < ball_radius` — must check `wall_x_px - speed * impact_frame >= ball_radius`
+- Ball remains visible for ~2 frames after reaching wall_x_px (until x > wall_x_px + ball_radius), so max-x heuristic overshoots; use closest-to-wall instead
+- Heavy blur (sigma=10) makes the synthetic white-on-gray ball undetectable at threshold 200
+
+### Test Results
+- 3 new tests in `TestWallImpactDetection`, all passing
+- 41 total wall tests (3 + 38 prior), zero regressions
+- Run: `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v`

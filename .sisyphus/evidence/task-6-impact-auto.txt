@@ -1,0 +1,8 @@
+Generate video where ball never reaches wall due to heavy blur; ... ok
+test_manual_correction_overrides_autonomous_detection (test_wall_impact.TestWallImpactDetection.test_manual_correction_overrides_autonomous_detection)
+Pass manual_correction={"impact_frame": 55, "impact_pixel": (230, 120)}; ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.803s
+
+OK
