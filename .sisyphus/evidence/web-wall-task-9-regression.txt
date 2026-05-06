@@ -1,0 +1,601 @@
+## python unittest regression
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+test_diagonal_distance (test_analysis.TestComputeScaleFactor.test_diagonal_distance)
+Test diagonal calibration. ... ok
+test_horizontal_distance (test_analysis.TestComputeScaleFactor.test_horizontal_distance)
+Test horizontal calibration. ... ok
+test_negative_real_distance_raises (test_analysis.TestComputeScaleFactor.test_negative_real_distance_raises)
+Negative real distance should raise ValueError. ... ok
+test_same_points_raises (test_analysis.TestComputeScaleFactor.test_same_points_raises)
+Same calibration points should raise ValueError. ... ok
+test_vertical_distance (test_analysis.TestComputeScaleFactor.test_vertical_distance)
+Test vertical calibration. ... ok
+test_zero_real_distance_raises (test_analysis.TestComputeScaleFactor.test_zero_real_distance_raises)
+Zero real distance should raise ValueError. ... ok
+test_constant_velocity (test_analysis.TestComputeVelocitySeries.test_constant_velocity)
+Test constant velocity motion. ... ok
+test_duration_sec (test_analysis.TestComputeVelocitySeries.test_duration_sec) ... ok
+test_insufficient_points_raises (test_analysis.TestComputeVelocitySeries.test_insufficient_points_raises)
+Less than 2 points should raise ValueError. ... ok
+test_invalid_fps_raises (test_analysis.TestComputeVelocitySeries.test_invalid_fps_raises)
+Zero/negative FPS should raise ValueError. ... ok
+test_invalid_scale_raises (test_analysis.TestComputeVelocitySeries.test_invalid_scale_raises)
+Zero/negative scale should raise ValueError. ... ok
+test_summary_statistics (test_analysis.TestComputeVelocitySeries.test_summary_statistics)
+Test summary stats are computed correctly. ... ok
+test_two_points_minimum (test_analysis.TestComputeVelocitySeries.test_two_points_minimum)
+Test with minimum 2 points. ... ok
+test_unit_conversion (test_analysis.TestComputeVelocitySeries.test_unit_conversion)
+Test m/s to km/h conversion. ... ok
+test_full_pipeline_math (test_analysis.TestIntegration.test_full_pipeline_math)
+Test complete velocity computation pipeline (math only). ... ok
+test_get_video_fps (test_analysis.TestVideoInfo.test_get_video_fps)
+Test FPS extraction. ... ok
+test_get_video_info (test_analysis.TestVideoInfo.test_get_video_info)
+Test video info extraction. ... ok
+test_invalid_video_path (test_analysis.TestVideoInfo.test_invalid_video_path)
+Test with invalid video path. ... [ WARN:0@1.237] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: no source element for URI "/nonexistent/video.mp4"
+[ WARN:0@1.237] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+[ WARN:0@1.238] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: no source element for URI "/nonexistent/video.mp4"
+[ WARN:0@1.238] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+ok
+test_baseline_evaluation_counts_reviewed_outcomes (test_annotation_service.TestAnnotationService.test_baseline_evaluation_counts_reviewed_outcomes)
+RJTPP baseline evaluation reports precision and recall from reviewed labels. ... ok
+test_export_writes_positive_and_empty_negative_labels (test_annotation_service.TestAnnotationService.test_export_writes_positive_and_empty_negative_labels)
+YOLO export writes normalized positive labels and empty negatives. ... ok
+test_review_actions_update_labels_and_progress (test_annotation_service.TestAnnotationService.test_review_actions_update_labels_and_progress)
+Human review actions persist labels and recompute progress. ... ok
+test_default_display_frame_uses_start_frame (test_cli_defaults.TestCLIInteractiveDisplayFrame.test_default_display_frame_uses_start_frame) ... ok
+test_display_frame_mismatch_raises (test_cli_defaults.TestCLIInteractiveDisplayFrame.test_display_frame_mismatch_raises) ... Error: In interactive mode, --display-frame must be omitted or equal to --start-frame
+ok
+test_main_outputs_json_summary_shape (test_evaluator.TestEvaluatorCLI.test_main_outputs_json_summary_shape) ... ok
+test_main_with_output_file (test_evaluator.TestEvaluatorCLI.test_main_with_output_file) ... ok
+test_empty_selected_serves_does_not_fall_back_to_attempts (test_evaluator.TestEvaluatorSourceSelection.test_empty_selected_serves_does_not_fall_back_to_attempts) ... ok
+test_evaluate_from_files_can_use_selected_serves (test_evaluator.TestEvaluatorSourceSelection.test_evaluate_from_files_can_use_selected_serves) ... ok
+test_evaluate_from_files_rejects_unknown_source (test_evaluator.TestEvaluatorSourceSelection.test_evaluate_from_files_rejects_unknown_source) ... ok
+test_candidate_consumed_once (test_evaluator.TestMatchTargetsToCandidates.test_candidate_consumed_once) ... ok
+test_exact_match (test_evaluator.TestMatchTargetsToCandidates.test_exact_match) ... ok
+test_multiple_targets_ordered (test_evaluator.TestMatchTargetsToCandidates.test_multiple_targets_ordered) ... ok
+test_negative_tolerance_raises (test_evaluator.TestMatchTargetsToCandidates.test_negative_tolerance_raises) ... ok
+test_no_candidates_all_unmatched (test_evaluator.TestMatchTargetsToCandidates.test_no_candidates_all_unmatched) ... ok
+test_outside_tolerance_is_unmatched (test_evaluator.TestMatchTargetsToCandidates.test_outside_tolerance_is_unmatched) ... ok
+test_within_tolerance (test_evaluator.TestMatchTargetsToCandidates.test_within_tolerance) ... ok
+test_zero_tolerance_exact_only (test_evaluator.TestMatchTargetsToCandidates.test_zero_tolerance_exact_only) ... ok
+test_zero_tolerance_no_fuzzy (test_evaluator.TestMatchTargetsToCandidates.test_zero_tolerance_no_fuzzy) ... ok
+test_attempt_record_has_expected_keys (test_evaluator.TestSummarizeServeAttempts.test_attempt_record_has_expected_keys) ... ok
+test_duplicate_nearby_candidates_only_match_once (test_evaluator.TestSummarizeServeAttempts.test_duplicate_nearby_candidates_only_match_once) ... ok
+test_matches_candidates_with_tolerance_and_preserves_velocity_fields (test_evaluator.TestSummarizeServeAttempts.test_matches_candidates_with_tolerance_and_preserves_velocity_fields) ... ok
+test_no_candidates_all_unmatched (test_evaluator.TestSummarizeServeAttempts.test_no_candidates_all_unmatched) ... ok
+test_load_target_timestamps_raises_on_invalid_line (test_evaluator.TestTimestampParsing.test_load_target_timestamps_raises_on_invalid_line) ... ok
+test_load_target_timestamps_raises_on_missing_file (test_evaluator.TestTimestampParsing.test_load_target_timestamps_raises_on_missing_file) ... ok
+test_parse_empty_lines_after_comments_is_allowed (test_evaluator.TestTimestampParsing.test_parse_empty_lines_after_comments_is_allowed)
+Lines that are comments-only should not raise. ... ok
+test_parse_timestamp_lines_raises_on_no_timestamps (test_evaluator.TestTimestampParsing.test_parse_timestamp_lines_raises_on_no_timestamps) ... ok
+test_parse_timestamp_lines_supports_mm_ss_and_hh_mm_ss (test_evaluator.TestTimestampParsing.test_parse_timestamp_lines_supports_mm_ss_and_hh_mm_ss) ... ok
+test_parse_timestamp_lines_supports_written_seconds_format (test_evaluator.TestTimestampParsing.test_parse_timestamp_lines_supports_written_seconds_format) ... ok
+test_autonomous_mode_passes_none_to_detector (test_serve_attempts.TestAdapterAutonomousMode.test_autonomous_mode_passes_none_to_detector)
+When expected_serves=None, detector receives None (not 12). ... ok
+test_explicit_mode_passes_int_to_detector (test_serve_attempts.TestAdapterAutonomousMode.test_explicit_mode_passes_int_to_detector)
+When expected_serves=5, detector receives 5. ... ok
+test_conservative_threshold_rejects_weak_evidence (test_serve_attempts.TestContactFrameRefinement.test_conservative_threshold_rejects_weak_evidence)
+Refinement rejects if candidate acceleration is <1.5x peak acceleration. ... ok
+test_no_shift_beyond_window (test_serve_attempts.TestContactFrameRefinement.test_no_shift_beyond_window)
+Refinement never shifts more than ±window frames. ... ok
+test_no_shift_when_peak_is_best (test_serve_attempts.TestContactFrameRefinement.test_no_shift_when_peak_is_best)
+If peak_frame already has the strongest acceleration, keep it. ... ok
+test_refines_to_strongest_acceleration (test_serve_attempts.TestContactFrameRefinement.test_refines_to_strongest_acceleration)
+Refinement shifts contact to frame with strongest rightward acceleration. ... ok
+test_expected_serves_none_does_not_raise (test_serve_attempts.TestDetectServeCandidatesDefaultCount.test_expected_serves_none_does_not_raise)
+Omitting expected_serves should not raise; default of 12 used internally. ... ok
+test_expected_serves_none_passes_expanded_count_to_profiles (test_serve_attempts.TestDetectServeCandidatesDefaultCount.test_expected_serves_none_passes_expanded_count_to_profiles)
+When expected_serves=None, detect_serve_events gets default-expanded count. ... ok
+test_explicit_expected_serves_overrides_default (test_serve_attempts.TestDetectServeCandidatesDefaultCount.test_explicit_expected_serves_overrides_default)
+Explicit expected_serves propagates to detection profiles. ... ok
+test_candidate_dict_has_required_keys (test_serve_attempts.TestDetectServeCandidatesOutputShape.test_candidate_dict_has_required_keys)
+Each candidate dict must carry detection-only fields (no target/match info). ... ok
+test_contact_time_sec_computed_from_fps (test_serve_attempts.TestDetectServeCandidatesOutputShape.test_contact_time_sec_computed_from_fps)
+contact_time_sec = contact_frame / fps. ... ok
+test_returns_list_of_candidate_dicts (test_serve_attempts.TestDetectServeCandidatesOutputShape.test_returns_list_of_candidate_dicts)
+When no events detected, should return empty list. ... ok
+test_expected_serves_zero_raises (test_serve_attempts.TestDetectServeCandidatesValidation.test_expected_serves_zero_raises)
+expected_serves=0 validated after video I/O — still raises ValueError. ... ok
+test_frame_skip_below_one_raises (test_serve_attempts.TestDetectServeCandidatesValidation.test_frame_skip_below_one_raises) ... ok
+test_video_only_mode_empty_result (test_serve_attempts.TestDetectorCLI.test_video_only_mode_empty_result)
+No serves detected → empty candidates list, exit 0. ... ok
+test_video_only_mode_no_timestamps_required (test_serve_attempts.TestDetectorCLI.test_video_only_mode_no_timestamps_required)
+Detector CLI should accept video without --timestamps-file. ... ok
+test_video_only_empty_candidates_output_shape (test_serve_attempts.TestDetectorCLIAutonomousCount.test_video_only_empty_candidates_output_shape)
+Video-only with no detections has correct output shape. ... ok
+test_video_only_with_explicit_expected_serves (test_serve_attempts.TestDetectorCLIAutonomousCount.test_video_only_with_explicit_expected_serves)
+CLI video-only with --expected-serves 3 passes it through. ... ok
+test_video_only_without_expected_serves_is_autonomous (test_serve_attempts.TestDetectorCLIAutonomousCount.test_video_only_without_expected_serves_is_autonomous)
+CLI video-only without --expected-serves uses autonomous inference. ... ok
+test_junk_still_excluded (test_serve_attempts.TestDirectionUnreliableRecovery.test_junk_still_excluded)
+Junk candidates (no-motion, near-zero drop+nrd) stay out. ... ok
+test_recovered_candidate_beats_weak_ordinary (test_serve_attempts.TestDirectionUnreliableRecovery.test_recovered_candidate_beats_weak_ordinary)
+A direction_unreliable candidate with strong toss evidence ranks above ... ok
+test_recovery_bonus_requires_strong_evidence (test_serve_attempts.TestDirectionUnreliableRecovery.test_recovery_bonus_requires_strong_evidence)
+A direction_unreliable candidate WITHOUT strong toss evidence ... ok
+test_all_below_floor_returns_zero (test_serve_attempts.TestInferServeCount.test_all_below_floor_returns_zero) ... ok
+test_clear_elbow_cuts_at_gap (test_serve_attempts.TestInferServeCount.test_clear_elbow_cuts_at_gap)
+A large rank gap should cut the count before it. ... ok
+test_empty_candidates_returns_zero (test_serve_attempts.TestInferServeCount.test_empty_candidates_returns_zero) ... ok
+test_floor_excludes_low_rank (test_serve_attempts.TestInferServeCount.test_floor_excludes_low_rank)
+Candidates below min_rank_floor are excluded before elbow analysis. ... ok
+test_single_candidate_returns_one (test_serve_attempts.TestInferServeCount.test_single_candidate_returns_one) ... ok
+test_uniform_ranks_returns_all (test_serve_attempts.TestInferServeCount.test_uniform_ranks_returns_all)
+No clear gap → return all candidates above floor. ... ok
+test_all_empty_groups_return_empty (test_serve_attempts.TestMergeCandidateEvents.test_all_empty_groups_return_empty) ... ok
+test_distant_events_not_merged (test_serve_attempts.TestMergeCandidateEvents.test_distant_events_not_merged) ... ok
+test_empty_groups_return_empty (test_serve_attempts.TestMergeCandidateEvents.test_empty_groups_return_empty) ... ok
+test_nearby_events_merged_keeps_higher_score (test_serve_attempts.TestMergeCandidateEvents.test_nearby_events_merged_keeps_higher_score) ... ok
+test_single_group_no_merge (test_serve_attempts.TestMergeCandidateEvents.test_single_group_no_merge) ... ok
+test_contact_frame_spike_excluded (test_serve_attempts.TestPostContactSpeedExcludesContactFrame.test_contact_frame_spike_excluded)
+A huge contact-frame displacement must not inflate post-contact speed. ... ok
+test_post_contact_positions_length (test_serve_attempts.TestPostContactSpeedExcludesContactFrame.test_post_contact_positions_length)
+post_contact_positions has len = post_end - contact. ... ok
+test_toss_still_includes_contact_frame (test_serve_attempts.TestPostContactSpeedExcludesContactFrame.test_toss_still_includes_contact_frame)
+Toss phase still includes the contact frame as its endpoint. ... ok
+test_no_temporal_bias_in_ranking (test_serve_attempts.TestRightwardMotionValidation.test_no_temporal_bias_in_ranking)
+Selector does not prefer early candidates over late ones by time alone. ... ok
+test_rebound_leftward_penalized (test_serve_attempts.TestRightwardMotionValidation.test_rebound_leftward_penalized)
+A rebound (leftward) candidate is penalized below rightward serves. ... ok
+test_rightward_candidate_ranks_above_nonrightward (test_serve_attempts.TestRightwardMotionValidation.test_rightward_candidate_ranks_above_nonrightward)
+A candidate with clear rightward motion ranks higher than one without. ... ok
+test_toss_only_upward_rejected (test_serve_attempts.TestRightwardMotionValidation.test_toss_only_upward_rejected)
+A toss-only candidate (no rightward, upward-only) ranks below true serves. ... ok
+test_rightward_only_p90_not_inflated_by_leftward (test_serve_attempts.TestRobustSpeedMetric.test_rightward_only_p90_not_inflated_by_leftward)
+Leftward frames are excluded from robust speed calculation. ... ok
+test_robust_speed_less_than_spike_max (test_serve_attempts.TestRobustSpeedMetric.test_robust_speed_less_than_spike_max)
+compute_horizontal_velocity returns array that can be used for robust speed. ... ok
+test_avoids_clustered_early_false_positives (test_serve_attempts.TestSelectServes.test_avoids_clustered_early_false_positives)
+Multiple early high-score FPs should not crowd out real serves. ... ok
+test_avoids_early_high_score_false_positive (test_serve_attempts.TestSelectServes.test_avoids_early_high_score_false_positive)
+Selector should skip an implausibly-early high-score candidate ... ok
+test_empty_candidates_returns_empty (test_serve_attempts.TestSelectServes.test_empty_candidates_returns_empty)
+No candidates → empty result regardless of expected_serves. ... ok
+test_honors_expected_serves_one (test_serve_attempts.TestSelectServes.test_honors_expected_serves_one)
+expected_serves=1 returns exactly one candidate. ... ok
+test_honors_expected_serves_returns_exact_count (test_serve_attempts.TestSelectServes.test_honors_expected_serves_returns_exact_count)
+When enough non-overlapping candidates exist, return exactly expected_serves. ... ok
+test_min_gap_sec_respected (test_serve_attempts.TestSelectServes.test_min_gap_sec_respected)
+Candidates closer than min_gap_sec should not both appear. ... ok
+test_results_sorted_by_contact_time (test_serve_attempts.TestSelectServes.test_results_sorted_by_contact_time)
+Output is sorted by contact_time_sec ascending regardless of input score order. ... ok
+test_returns_fewer_when_not_enough_non_overlapping (test_serve_attempts.TestSelectServes.test_returns_fewer_when_not_enough_non_overlapping)
+If overlapping candidates prevent filling expected_serves, return fewer. ... ok
+test_sorting_holds_with_many_candidates (test_serve_attempts.TestSelectServes.test_sorting_holds_with_many_candidates)
+Sort order verified with more candidates than expected_serves. ... ok
+test_autonomous_empty_candidates (test_serve_attempts.TestSelectServesAutonomous.test_autonomous_empty_candidates) ... ok
+test_autonomous_excludes_poor_candidates (test_serve_attempts.TestSelectServesAutonomous.test_autonomous_excludes_poor_candidates)
+Autonomous mode should not force-include low-quality candidates. ... ok
+test_autonomous_with_clear_quality_candidates (test_serve_attempts.TestSelectServesAutonomous.test_autonomous_with_clear_quality_candidates)
+When top candidates are clearly better than rest, infer correct count. ... ok
+test_explicit_still_works (test_serve_attempts.TestSelectServesAutonomous.test_explicit_still_works)
+Explicit expected_serves=2 forces exactly 2 (backward compat). ... ok
+test_empty_candidates_returns_empty (test_serve_attempts.TestSelectServesAutonomousCount.test_empty_candidates_returns_empty)
+No candidates -> empty result in autonomous mode. ... ok
+test_excludes_low_velocity_candidates (test_serve_attempts.TestSelectServesAutonomousCount.test_excludes_low_velocity_candidates)
+Candidates with implausibly low velocity excluded in autonomous mode. ... ok
+test_respects_min_gap_sec (test_serve_attempts.TestSelectServesAutonomousCount.test_respects_min_gap_sec)
+Autonomous mode still enforces min_gap_sec between selections. ... ok
+test_returns_all_quality_candidates (test_serve_attempts.TestSelectServesAutonomousCount.test_returns_all_quality_candidates)
+Autonomous mode returns all candidates that pass quality heuristics. ... ok
+test_sorted_by_contact_time (test_serve_attempts.TestSelectServesAutonomousCount.test_sorted_by_contact_time)
+Autonomous results sorted by contact_time_sec ascending. ... ok
+test_explicit_k_more_than_candidates (test_serve_attempts.TestSelectServesExplicitKBackwardCompat.test_explicit_k_more_than_candidates)
+expected_serves > len(candidates) returns at most len(candidates). ... ok
+test_explicit_k_negative_returns_empty (test_serve_attempts.TestSelectServesExplicitKBackwardCompat.test_explicit_k_negative_returns_empty)
+Negative expected_serves returns empty list. ... ok
+test_explicit_k_one (test_serve_attempts.TestSelectServesExplicitKBackwardCompat.test_explicit_k_one)
+expected_serves=1 returns exactly one. ... ok
+test_explicit_k_zero_returns_empty (test_serve_attempts.TestSelectServesExplicitKBackwardCompat.test_explicit_k_zero_returns_empty)
+expected_serves=0 returns empty list. ... ok
+test_floor_hit_false_positive_rejected (test_serve_attempts.TestTossGeometryAndFloorDriveRejection.test_floor_hit_false_positive_rejected)
+Rightward motion plus strong immediate downward post-contact is rejected. ... ok
+test_prep_pocket_false_positive_rejected (test_serve_attempts.TestTossGeometryAndFloorDriveRejection.test_prep_pocket_false_positive_rejected)
+Weak toss rise and short toss duration should not survive selection. ... ok
+test_real_serve_with_moderate_descent_not_over_pruned (test_serve_attempts.TestTossGeometryAndFloorDriveRejection.test_real_serve_with_moderate_descent_not_over_pruned)
+Candidate with strong toss geometry and moderate post-contact descent survives. ... ok
+test_allows_large_jump_after_long_gap (test_serve_attempts_v2.TestContinuityGatePositions.test_allows_large_jump_after_long_gap) ... ok
+test_rejects_large_jump_after_short_gap (test_serve_attempts_v2.TestContinuityGatePositions.test_rejects_large_jump_after_short_gap) ... ok
+test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v2.TestDetectServeCandidatesV2.test_cached_detection_output_has_no_evaluator_keys) ... ok
+test_audio_match_emits_bonus_and_delta (test_serve_attempts_v3.TestDetectServeCandidatesV3.test_audio_match_emits_bonus_and_delta) ... ok
+test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v3.TestDetectServeCandidatesV3.test_cached_detection_output_has_no_evaluator_keys) ... ok
+test_emits_peak_kmh_with_real_track (test_serve_attempts_v3.TestRecomputePeakVelocities.test_emits_peak_kmh_with_real_track) ... ok
+test_no_track_leaves_peak_kmh_none (test_serve_attempts_v3.TestRecomputePeakVelocities.test_no_track_leaves_peak_kmh_none) ... ok
+test_top_k_is_outlier_robust (test_serve_attempts_v3.TestRecomputePeakVelocities.test_top_k_is_outlier_robust) ... ok
+test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v4.TestDetectServeCandidatesV4.test_cached_detection_output_has_no_evaluator_keys) ... [ WARN:0@1.314] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
+[ WARN:0@1.314] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+ok
+test_finds_apex_in_toss (test_serve_attempts_v4.TestDirectionChangeDetection.test_finds_apex_in_toss) ... ok
+test_returns_contact_frame_when_no_apex (test_serve_attempts_v4.TestDirectionChangeDetection.test_returns_contact_frame_when_no_apex) ... ok
+test_empty_candidates_returns_empty (test_serve_attempts_v4.TestRefineContactToApex.test_empty_candidates_returns_empty) ... ok
+test_refines_contact_frame (test_serve_attempts_v4.TestRefineContactToApex.test_refines_contact_frame) ... ok
+test_high_toss_capped_at_max (test_serve_attempts_v5.TestAdaptiveApexOffset.test_high_toss_capped_at_max) ... ok
+test_low_toss_returns_min_offset (test_serve_attempts_v5.TestAdaptiveApexOffset.test_low_toss_returns_min_offset) ... ok
+test_medium_toss_returns_scaled_offset (test_serve_attempts_v5.TestAdaptiveApexOffset.test_medium_toss_returns_scaled_offset) ... ok
+test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v5.TestDetectServeCandidatesV5.test_cached_detection_output_has_no_evaluator_keys) ... [ WARN:0@1.317] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
+[ WARN:0@1.317] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+ok
+test_v5_detector_label (test_serve_attempts_v5.TestDetectServeCandidatesV5.test_v5_detector_label) ... [ WARN:0@1.318] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
+[ WARN:0@1.318] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+ok
+test_empty_input_returns_empty (test_serve_attempts_v5.TestQualityGate.test_empty_input_returns_empty) ... ok
+test_filters_low_rightward_candidates (test_serve_attempts_v5.TestQualityGate.test_filters_low_rightward_candidates) ... ok
+test_filters_low_speed_candidates (test_serve_attempts_v5.TestQualityGate.test_filters_low_speed_candidates) ... ok
+test_passes_qualified_candidates (test_serve_attempts_v5.TestQualityGate.test_passes_qualified_candidates) ... ok
+test_caps_excessive_backward_shift (test_serve_attempts_v5.TestRefineContactHybrid.test_caps_excessive_backward_shift) ... ok
+test_empty_candidates_returns_empty (test_serve_attempts_v5.TestRefineContactHybrid.test_empty_candidates_returns_empty) ... ok
+test_keeps_v1_frame_when_close_to_apex (test_serve_attempts_v5.TestRefineContactHybrid.test_keeps_v1_frame_when_close_to_apex) ... ok
+test_output_always_reports_autonomous_count (test_serve_attempts_v6.TestV6AutonomousContract.test_output_always_reports_autonomous_count) ... ok
+test_parser_has_no_expected_serves_option (test_serve_attempts_v6.TestV6AutonomousContract.test_parser_has_no_expected_serves_option) ... ok
+test_public_detector_signature_has_no_expected_serves (test_serve_attempts_v6.TestV6AutonomousContract.test_public_detector_signature_has_no_expected_serves) ... ok
+test_selection_rejects_short_toss_downward_artifact (test_serve_attempts_v6.TestV6Selection.test_selection_rejects_short_toss_downward_artifact) ... ok
+test_combine_votes_accepts_agreeing_sources (test_serve_attempts_v6.TestV6WindowsAndVotes.test_combine_votes_accepts_agreeing_sources) ... ok
+test_combine_votes_marks_single_strong_vote_pending (test_serve_attempts_v6.TestV6WindowsAndVotes.test_combine_votes_marks_single_strong_vote_pending) ... ok
+test_merge_windows_combines_overlaps_and_sources (test_serve_attempts_v6.TestV6WindowsAndVotes.test_merge_windows_combines_overlaps_and_sources) ... ok
+test_speed_rescue_adds_candidate_for_uncovered_rescue_window (test_serve_attempts_v6.TestV6WindowsAndVotes.test_speed_rescue_adds_candidate_for_uncovered_rescue_window) ... ok
+test_annotated_video_is_readable (test_wall_artifacts.TestWallArtifacts.test_annotated_video_is_readable)
+Generate annotated MP4; verify it opens and has frames. ... ok
+test_overwrite_false_raises_when_exists (test_wall_artifacts.TestWallArtifacts.test_overwrite_false_raises_when_exists)
+Pre-create output files; call with overwrite=False; assert FileExistsError. ... ok
+test_plots_are_generated_nonempty_pngs (test_wall_artifacts.TestWallArtifacts.test_plots_are_generated_nonempty_pngs)
+Call render_plots; assert all 3 PNG paths exist with size > 0. ... ok
+test_plots_refused_projection_renders (test_wall_artifacts.TestWallArtifacts.test_plots_refused_projection_renders)
+When projection is refused (None landing), court_landing.png still renders. ... ok
+test_warnings_overlay_no_exception (test_wall_artifacts.TestWallArtifacts.test_warnings_overlay_no_exception)
+Build result with non-empty warnings; assert render_annotated_video succeeds. ... ok
+test_approx_intrinsics_marks_degraded (test_wall_calibration.TestWallHomography.test_approx_intrinsics_marks_degraded)
+Approximate EXIF intrinsics mark calibration residuals degraded. ... ok
+test_collinear_points_rejected (test_wall_calibration.TestWallHomography.test_collinear_points_rejected)
+Four collinear references raise structured calibration failure. ... ok
+test_round_trip_synthetic_points (test_wall_calibration.TestWallHomography.test_round_trip_synthetic_points)
+Synthetic wall points round-trip pixel→wall→pixel within 1 px RMS. ... ok
+test_csv_field_names_exposed (test_wall_calibration.TestWallMetadataSchema.test_csv_field_names_exposed)
+Module exposes CSV_COLUMNS in the exact required order. ... ok
+test_fewer_than_four_wall_points_rejected (test_wall_calibration.TestWallMetadataSchema.test_fewer_than_four_wall_points_rejected)
+Fewer than 4 wall_reference_points raises WallCalibrationError. ... ok
+test_intrinsics_non_none_requires_dist_coeffs (test_wall_calibration.TestWallMetadataSchema.test_intrinsics_non_none_requires_dist_coeffs)
+Non-'none' source without dist_coeffs raises WallCalibrationError. ... ok
+test_intrinsics_non_none_requires_matrix (test_wall_calibration.TestWallMetadataSchema.test_intrinsics_non_none_requires_matrix)
+Non-'none' source without camera_matrix raises WallCalibrationError. ... ok
+test_intrinsics_none_does_not_require_matrix (test_wall_calibration.TestWallMetadataSchema.test_intrinsics_none_does_not_require_matrix)
+source='none' is accepted without camera_matrix or dist_coeffs. ... ok
+test_manual_corrections_optional (test_wall_calibration.TestWallMetadataSchema.test_manual_corrections_optional)
+manual_corrections is accepted as an optional dict keyed by serve_index. ... ok
+test_missing_contact_height_rejected (test_wall_calibration.TestWallMetadataSchema.test_missing_contact_height_rejected)
+Missing serve_contact_height_m raises WallCalibrationError. ... ok
+test_optional_intrinsics_accepted (test_wall_calibration.TestWallMetadataSchema.test_optional_intrinsics_accepted)
+All valid intrinsics_source values are accepted. ... ok
+test_regulation_court_constants_exposed (test_wall_calibration.TestWallMetadataSchema.test_regulation_court_constants_exposed)
+Module exposes regulation court dimensions in meters. ... ok
+test_to_dict_roundtrip (test_wall_calibration.TestWallMetadataSchema.test_to_dict_roundtrip)
+to_dict() produces a dict that from_dict() can reconstruct. ... ok
+test_valid_reusable_setup (test_wall_calibration.TestWallMetadataSchema.test_valid_reusable_setup)
+Accept a well-formed dict with all required fields. ... ok
+test_video_override_optional (test_wall_calibration.TestWallMetadataSchema.test_video_override_optional)
+video_override is accepted as an optional per-video dict. ... ok
+test_warning_codes_frozenset (test_wall_calibration.TestWallMetadataSchema.test_warning_codes_frozenset)
+WARNING_CODES contains the minimum required codes. ... ok
+test_default_mode_is_setup (test_wall_calibration_cli.TestWallCalibrationCli.test_default_mode_is_setup)
+Omitting --mode defaults to setup mode. ... ok
+test_help_exits_zero (test_wall_calibration_cli.TestWallCalibrationCli.test_help_exits_zero)
+--help prints usage and exits 0. ... ok
+test_insufficient_wall_points_returns_error (test_wall_calibration_cli.TestWallCalibrationCli.test_insufficient_wall_points_returns_error)
+Only 3 wall points → nonzero exit, structured stderr, no traceback. ... ok
+test_interactive_flag_defaults_off (test_wall_calibration_cli.TestWallCalibrationCli.test_interactive_flag_defaults_off)
+--interactive is not required and defaults to False. ... ok
+test_intrinsics_source_not_emitted_by_cli (test_wall_calibration_cli.TestWallCalibrationCli.test_intrinsics_source_not_emitted_by_cli)
+CLI does not emit intrinsics block because matrix data is unavailable via flags. ... ok
+test_missing_contact_height_returns_error (test_wall_calibration_cli.TestWallCalibrationCli.test_missing_contact_height_returns_error)
+No --serve-contact-height → nonzero exit, structured message. ... ok
+test_noninteractive_writes_valid_setup_json (test_wall_calibration_cli.TestWallCalibrationCli.test_noninteractive_writes_valid_setup_json)
+setup mode with flags writes JSON that from_dict() accepts. ... ok
+test_override_mode_with_wall_points_and_refs (test_wall_calibration_cli.TestWallCalibrationCli.test_override_mode_with_wall_points_and_refs)
+override mode accepts wall points, hook, and chairs. ... ok
+test_override_mode_writes_minimal_per_video_json (test_wall_calibration_cli.TestWallCalibrationCli.test_override_mode_writes_minimal_per_video_json)
+override mode writes a JSON with video_override keys. ... ok
+test_documented_synthetic_workflow_command (test_wall_cli.TestWallAnalysisCli.test_documented_synthetic_workflow_command)
+The exact command pattern from README works with synthetic fixtures. ... ok
+test_help_exits_zero (test_wall_cli.TestWallAnalysisCli.test_help_exits_zero)
+--help prints usage and exits 0. ... ok
+test_no_video_no_plots_flags_skip_artifacts (test_wall_cli.TestWallAnalysisCli.test_no_video_no_plots_flags_skip_artifacts)
+--no-video and --no-plots skip heavy artifacts but still produce JSON/CSV. ... ok
+test_real_wall_video_examples_are_documented_only (test_wall_cli.TestWallAnalysisCli.test_real_wall_video_examples_are_documented_only)
+Real wall video paths appear in docs but never in test code. ... ok
+test_synthetic_end_to_end_outputs_all_artifacts (test_wall_cli.TestWallAnalysisCli.test_synthetic_end_to_end_outputs_all_artifacts)
+Synthetic video produces all required artifacts: JSON, CSV, annotated MP4, plots. ... ok
+test_conflicting_per_video_override (test_wall_edge_cases.TestConflictingOverride.test_conflicting_per_video_override)
+setup.json serve_contact_height_m=2.45 vs override 2.80; override wins. ... ok
+test_existing_lateral_pipeline_unchanged (test_wall_edge_cases.TestLateralPipelineUnchanged.test_existing_lateral_pipeline_unchanged)
+Import cli and serve_attempts_v6; check public symbols match snapshot. ... ok
+test_approx_exif_intrinsics_flags_degraded (test_wall_edge_cases.TestMissingIntrinsics.test_approx_exif_intrinsics_flags_degraded)
+intrinsics.source='approx_exif' triggers degraded_intrinsics warning and reduced confidence. ... ok
+test_missing_intrinsics_flags_degraded (test_wall_edge_cases.TestMissingIntrinsics.test_missing_intrinsics_flags_degraded)
+No intrinsics block in metadata; verify pipeline handles it correctly. ... ok
+test_nonexistent_manual_correction_serve_index (test_wall_edge_cases.TestNonexistentManualCorrection.test_nonexistent_manual_correction_serve_index)
+Pass manual_corrections with key '99'; pipeline does not crash. ... ok
+test_rotated_video_metadata_via_mock (test_wall_edge_cases.TestRotatedVideoMetadata.test_rotated_video_metadata_via_mock)
+Pipeline handles swapped video dimensions without crashing. ... ok
+test_variable_fps_metadata_uses_override (test_wall_edge_cases.TestVariableFpsMetadata.test_variable_fps_metadata_uses_override)
+Synthetic 60 fps video with --fps 30 override; impact_time_sec uses 30 fps timeline. ... ok
+test_detects_known_impact_frame_and_point (test_wall_impact.TestWallImpactDetection.test_detects_known_impact_frame_and_point)
+Generate synthetic video with impact_frame=60, wall_x_px=240; ... ok
+test_insufficient_track_returns_warning (test_wall_impact.TestWallImpactDetection.test_insufficient_track_returns_warning)
+Generate video where ball never reaches wall due to heavy blur; ... ok
+test_manual_correction_overrides_autonomous_detection (test_wall_impact.TestWallImpactDetection.test_manual_correction_overrides_autonomous_detection)
+Pass manual_correction={"impact_frame": 55, "impact_pixel": (230, 120)}; ... ok
+test_missing_fields_filled_with_none (test_wall_outputs.TestServeToCsvRowEdgeCases.test_missing_fields_filled_with_none) ... ok
+test_warning_codes_as_string (test_wall_outputs.TestServeToCsvRowEdgeCases.test_warning_codes_as_string) ... ok
+test_warning_codes_from_warnings_key (test_wall_outputs.TestServeToCsvRowEdgeCases.test_warning_codes_from_warnings_key) ... ok
+test_json_serializable (test_wall_outputs.TestToJsonExclusivelySixKeys.test_json_serializable)
+The output of to_json must be serializable via json.dumps. ... ok
+test_no_extra_top_level_keys (test_wall_outputs.TestToJsonExclusivelySixKeys.test_no_extra_top_level_keys) ... ok
+test_csv_round_trip_via_csv_module (test_wall_outputs.TestWallOutputContracts.test_csv_round_trip_via_csv_module)
+Write rows via csv.writer, read back via csv.reader, verify header and data. ... ok
+test_json_and_csv_contract (test_wall_outputs.TestWallOutputContracts.test_json_and_csv_contract)
+JSON dict has exactly 6 required keys; CSV row length/order matches CSV_COLUMNS. ... ok
+test_plot_filenames_are_deterministic (test_wall_outputs.TestWallOutputContracts.test_plot_filenames_are_deterministic)
+Formatting the same template twice yields identical strings. ... ok
+test_warning_codes_flatten_deterministically (test_wall_outputs.TestWallOutputContracts.test_warning_codes_flatten_deterministically)
+Unordered warning codes produce identical CSV cell across two calls. ... ok
+test_confidence_score_formula (test_wall_outputs.TestWallSerialization.test_confidence_score_formula)
+Verify confidence score computation matches documented formula. ... ok
+test_parseable_json_and_csv_from_analysis_result (test_wall_outputs.TestWallSerialization.test_parseable_json_and_csv_from_analysis_result)
+Build synthetic result, serialize JSON, verify 6 keys; CSV row matches columns. ... ok
+test_refused_projection_still_writes_row_with_warning (test_wall_outputs.TestWallSerialization.test_refused_projection_still_writes_row_with_warning)
+Refused projection produces CSV row with null fields and projection_refused warning. ... ok
+test_minimum_warning_codes_present (test_wall_outputs.TestWarningCodesMinimumSet.test_minimum_warning_codes_present) ... ok
+test_projects_known_projectile_landing (test_wall_projection.TestCourtProjection.test_projects_known_projectile_landing)
+Hand-set projectile: h0=2.5m, vz=-5 m/s (toward wall), vy=0, vx=0. ... ok
+test_refuses_projection_without_speed (test_wall_projection.TestCourtProjection.test_refuses_projection_without_speed)
+PreWallSpeedResult with speed_m_s=None and 'insufficient_track' ... ok
+test_uncertainty_sensitivity_present (test_wall_projection.TestCourtProjection.test_uncertainty_sensitivity_present)
+Result includes landing_z_sensitivity_m and landing_x_sensitivity_m ... ok
+test_blur_variant_records_expected_uncertainty (test_wall_synthetic.TestSyntheticWallVideo.test_blur_variant_records_expected_uncertainty)
+Blur sigma increases expected uncertainty; video still readable. ... ok
+test_generates_readable_known_impact_video (test_wall_synthetic.TestSyntheticWallVideo.test_generates_readable_known_impact_video)
+Generated video is readable by OpenCV and matches ground truth. ... ok
+test_ground_truth_positions_are_deterministic (test_wall_synthetic.TestSyntheticWallVideo.test_ground_truth_positions_are_deterministic)
+Two calls with identical arguments produce identical ball_positions. ... ok
+test_degraded_intrinsics_inflates_uncertainty (test_wall_trajectory.TestPreWallSpeed.test_degraded_intrinsics_inflates_uncertainty)
+Same fixture with intrinsics source 'approx_exif' → larger ... ok
+test_estimates_known_synthetic_speed (test_wall_trajectory.TestPreWallSpeed.test_estimates_known_synthetic_speed)
+Synthetic ball at 3 px/frame, 60 fps, scale ≈ 0.01 m/px. ... ok
+test_refuses_speed_with_too_few_points (test_wall_trajectory.TestPreWallSpeed.test_refuses_speed_with_too_few_points)
+candidate_track length < 4 → all speed fields None, ... ok
+test_full_synthetic_flow (test_wall_web_analysis.TestWallWebAnalysis.test_full_synthetic_flow)
+Upload → calibrate → analyze → poll job → assert six-section payload. ... ok
+test_nested_plot_artifact (test_wall_web_analysis.TestWallWebAnalysis.test_nested_plot_artifact)
+Analyze then GET a nested plot artifact and assert 200 + non-zero bytes. ... ok
+test_path_traversal_rejected (test_wall_web_analysis.TestWallWebAnalysis.test_path_traversal_rejected)
+GET with traversal sequences must return 400/403/404. ... ok
+test_reject_analyze_when_busy (test_wall_web_analysis.TestWallWebAnalysis.test_reject_analyze_when_busy)
+POST analyze when another job is active → 409. ... ok
+test_reject_analyze_without_calibration (test_wall_web_analysis.TestWallWebAnalysis.test_reject_analyze_without_calibration)
+POST analyze without calibration → 400. ... [ WARN:4@9.605] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: no source element for URI "/tmp/nix-shell.weurY0/nix-shell.rdnuVo/serve_analyzer/wall/wall_19a0823012954341b18e1cd8e91d897a.mp4"
+[ WARN:4@9.605] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+ok
+test_delete_calibration (test_wall_web_calibration.TestWallWebCalibration.test_delete_calibration)
+DELETE calibration -> 200, then GET returns 404. ... ok
+test_full_suite_unchanged (test_wall_web_calibration.TestWallWebCalibration.test_full_suite_unchanged)
+Document that the full suite must be run after this targeted file. ... skipped 'The full suite is run by task verification, not recursively inside itself.'
+test_get_calibration_after_post (test_wall_web_calibration.TestWallWebCalibration.test_get_calibration_after_post)
+POST calibration then GET returns same values. ... ok
+test_job_reset_does_not_clear_calibration (test_wall_web_calibration.TestWallWebCalibration.test_job_reset_does_not_clear_calibration)
+POST calibration, POST job/reset, GET calibration still 200. ... ok
+test_post_requires_matching_video_id (test_wall_web_calibration.TestWallWebCalibration.test_post_requires_matching_video_id)
+POST calibration with mismatched video_id -> 400. ... ok
+test_post_too_few_points (test_wall_web_calibration.TestWallWebCalibration.test_post_too_few_points)
+POST with 3 points -> 422 with actionable message. ... ok
+test_post_valid_calibration (test_wall_web_calibration.TestWallWebCalibration.test_post_valid_calibration)
+POST 4-point calibration -> 200 with point_count. ... ok
+test_full_wall_web_flow (test_wall_web_e2e.TestWallWebE2E.test_full_wall_web_flow)
+Upload → calibrate → analyze → poll → artifacts → reset. ... ok
+test_full_suite_unchanged (test_wall_web_review_clip.TestWallWebReviewClip.test_full_suite_unchanged)
+Document that the full suite must be run after this targeted file. ... skipped 'The full suite is run by task verification, not recursively inside itself.'
+test_full_synthetic_flow_has_review_clip (test_wall_web_review_clip.TestWallWebReviewClip.test_full_synthetic_flow_has_review_clip)
+Upload → calibrate → analyze → assert review_clip exists in artifacts. ... ok
+test_no_review_clip_when_impact_time_is_none (test_wall_web_review_clip.TestWallWebReviewClip.test_no_review_clip_when_impact_time_is_none)
+If impact_time_sec is absent, review_clip and review should be omitted. ... ok
+test_review_clip_window_clamps_at_start (test_wall_web_review_clip.TestWallWebReviewClip.test_review_clip_window_clamps_at_start)
+When impact is near the start, start_time_sec should clamp to 0. ... ok
+test_full_suite_unchanged (test_wall_web_session.TestWallWebSession.test_full_suite_unchanged)
+Document that the full suite must be run after this targeted file. ... skipped 'The full suite is run by task verification, not recursively inside itself.'
+test_get_staged_video (test_wall_web_session.TestWallWebSession.test_get_staged_video)
+Upload then GET video_url and assert 200 with video content-type. ... ok
+test_get_video_metadata (test_wall_web_session.TestWallWebSession.test_get_video_metadata)
+Upload then GET metadata endpoint and assert numeric fields. ... ok
+test_global_busy_guard_serve_blocks_wall (test_wall_web_session.TestWallWebSession.test_global_busy_guard_serve_blocks_wall)
+Set normal serve state active, POST /api/wall/video, assert 409. ... ok
+test_global_busy_guard_wall_blocks_serve (test_wall_web_session.TestWallWebSession.test_global_busy_guard_wall_blocks_serve)
+Set wall state active, POST /api/analyze, assert 409. ... ok
+test_job_reset_clears_video (test_wall_web_session.TestWallWebSession.test_job_reset_clears_video)
+Upload, reset, then GET old video_id and assert 404. ... ok
+test_reject_invalid_file_type (test_wall_web_session.TestWallWebSession.test_reject_invalid_file_type)
+Upload .txt and assert 400. ... ok
+test_reject_unknown_video_id (test_wall_web_session.TestWallWebSession.test_reject_unknown_video_id)
+GET unknown video_id and assert 404. ... ok
+test_upload_wall_video (test_wall_web_session.TestWallWebSession.test_upload_wall_video)
+Upload synthetic MP4 and assert 200 with metadata fields. ... ok
+test_1080p_uses_frame_skip_2 (test_web_analysis_service.TestAnalysisServiceAdaptiveFrameSkip.test_1080p_uses_frame_skip_2) ... ok
+test_4k_uses_frame_skip_4 (test_web_analysis_service.TestAnalysisServiceAdaptiveFrameSkip.test_4k_uses_frame_skip_4) ... ok
+test_autonomous_expected_serves_none_passed_through (test_web_analysis_service.TestAnalysisServiceAdaptiveFrameSkip.test_autonomous_expected_serves_none_passed_through) ... ok
+test_small_video_uses_frame_skip_1 (test_web_analysis_service.TestAnalysisServiceAdaptiveFrameSkip.test_small_video_uses_frame_skip_1) ... ok
+test_explicit_int_not_inferred (test_web_analysis_service.TestAnalysisServiceCountInference.test_explicit_int_not_inferred) ... ok
+test_none_means_inferred (test_web_analysis_service.TestAnalysisServiceCountInference.test_none_means_inferred) ... ok
+test_pool_size_passed_through_when_explicit (test_web_analysis_service.TestAnalysisServiceCountInference.test_pool_size_passed_through_when_explicit) ... ok
+test_pool_size_passes_none_in_autonomous_mode (test_web_analysis_service.TestAnalysisServiceCountInference.test_pool_size_passes_none_in_autonomous_mode)
+When expected_serves=None, detect_serve_candidates receives None. ... ok
+test_callback_receives_analyzing_and_done (test_web_analysis_service.TestAnalysisServiceProgress.test_callback_receives_analyzing_and_done) ... ok
+test_callback_receives_clipping_between_analyzing_and_done (test_web_analysis_service.TestAnalysisServiceProgress.test_callback_receives_clipping_between_analyzing_and_done) ... ok
+test_no_callback_when_none_provided (test_web_analysis_service.TestAnalysisServiceProgress.test_no_callback_when_none_provided) ... ok
+test_empty_candidates_shape (test_web_analysis_service.TestAnalysisServiceShape.test_empty_candidates_shape) ... ok
+test_result_has_required_keys (test_web_analysis_service.TestAnalysisServiceShape.test_result_has_required_keys) ... ok
+test_unknown_detector_version_raises (test_web_analysis_service.TestAnalysisServiceShape.test_unknown_detector_version_raises) ... ok
+test_v2_detector_version_uses_v2_service (test_web_analysis_service.TestAnalysisServiceShape.test_v2_detector_version_uses_v2_service) ... ok
+test_v6_detector_version_ignores_expected_serves (test_web_analysis_service.TestAnalysisServiceShape.test_v6_detector_version_ignores_expected_serves) ... ok
+test_get_clip_path_traversal (test_web_api_contract.TestWebApiContract.test_get_clip_path_traversal)
+GET /clips with path traversal returns 400. ... ok
+test_get_detectors_lists_versions (test_web_api_contract.TestWebApiContract.test_get_detectors_lists_versions)
+GET /api/detectors returns detector-version metadata. ... ok
+test_get_job_idle (test_web_api_contract.TestWebApiContract.test_get_job_idle)
+GET /api/job returns idle state with correct shape. ... ok
+test_post_analyze_conflict (test_web_api_contract.TestWebApiContract.test_post_analyze_conflict)
+Concurrent POST /api/analyze returns 409. ... ok
+test_post_analyze_rejects_non_video (test_web_api_contract.TestWebApiContract.test_post_analyze_rejects_non_video)
+POST /api/analyze with a text file returns 400. ... ok
+test_post_analyze_rejects_unknown_detector_version (test_web_api_contract.TestWebApiContract.test_post_analyze_rejects_unknown_detector_version)
+POST /api/analyze validates detector version before mutating state. ... ok
+test_post_annotation_session_returns_session_without_mutating_job (test_web_api_contract.TestWebApiContract.test_post_annotation_session_returns_session_without_mutating_job)
+POST /api/annotation/sessions creates a separate annotation session. ... ok
+test_post_reset (test_web_api_contract.TestWebApiContract.test_post_reset)
+POST /api/job/reset returns to idle and cleans artifacts. ... ok
+test_post_reset_preserves_annotation_sessions (test_web_api_contract.TestWebApiContract.test_post_reset_preserves_annotation_sessions)
+POST /api/job/reset does not delete annotation artifacts. ... ok
+test_cleanup_clips_removes_files (test_web_clip_service.TestClipServiceIntegration.test_cleanup_clips_removes_files)
+cleanup_clips removes all files from the clips directory. ... ok
+test_generate_clips_creates_mp4_files (test_web_clip_service.TestClipServiceIntegration.test_generate_clips_creates_mp4_files)
+Clips are extracted, scaled, and written as valid MP4 files. ... ok
+test_clip_naming_and_url (test_web_clip_service.TestClipServiceUnit.test_clip_naming_and_url)
+Files are named serve-01.mp4, serve-02.mp4 with matching url_path. ... ok
+test_contact_time_passed_through (test_web_clip_service.TestClipServiceUnit.test_contact_time_passed_through)
+contact_time_sec is preserved in metadata. ... ok
+test_duration_field (test_web_clip_service.TestClipServiceUnit.test_duration_field)
+Duration equals end - start. ... ok
+test_empty_selected_serves (test_web_clip_service.TestClipServiceUnit.test_empty_selected_serves)
+Empty input returns empty metadata list, no writer work. ... ok
+test_overlay_metadata_uses_only_detected_positions (test_web_clip_service.TestClipServiceUnit.test_overlay_metadata_uses_only_detected_positions)
+Ball overlay metadata is present only for frames with raw detections. ... ok
+test_serve_index_field (test_web_clip_service.TestClipServiceUnit.test_serve_index_field)
+serve_index is 1-indexed. ... ok
+test_window_calculation (test_web_clip_service.TestClipServiceUnit.test_window_calculation)
+Clip window is max(contact - 2.25, 0) to contact + 1.75. ... ok
+
+----------------------------------------------------------------------
+Ran 274 tests in 12.810s
+
+OK (skipped=3)
+
+Video: dummy.mp4
+  FPS: 30.0
+  Resolution: 640x480
+  Frames: 10
+  Duration: 0.33s
+
+Scale: 0.070711 meters/pixel
+      (14.14 pixels/meter)
+
+Tracking from frame 42...
+Tracked 2 frames
+
+=== Velocity Results ===
+Max speed:   76.4 km/h (21.2 m/s)
+Mean speed:  76.4 km/h (21.2 m/s)
+Median speed: 76.4 km/h (21.2 m/s)
+Duration:    0.033s (2 frames)
+
+NOTE: These are APPROXIMATE velocities from a single lateral view.
+Accuracy depends on:
+  - Quality of manual calibration
+  - Tracking reliability
+  - Camera angle and perspective
+  - Ball motion being primarily in the calibration plane
+
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.rdnuVo/tmp5v3t89fq/setup.json
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.rdnuVo/tmphv34ll9w/setup.json
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.rdnuVo/tmp_wgsbw5u/setup.json
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.rdnuVo/tmp6thj45xg/setup.json
+Wrote override to /tmp/nix-shell.weurY0/nix-shell.rdnuVo/tmpdah7n979/override.json
+Wrote override to /tmp/nix-shell.weurY0/nix-shell.rdnuVo/tmp0a_uw_4j/override.json
+usage: python -m serve_analyzer.wall_serve [-h] (--video VIDEO |
+                                           --batch BATCH) --metadata METADATA
+                                           [--override OVERRIDE]
+                                           --output-dir OUTPUT_DIR
+                                           [--manual-corrections MANUAL_CORRECTIONS]
+                                           [--no-video] [--no-plots]
+                                           [--fps FPS]
+
+Analyze wall-serve videos: detect impact, estimate speed, project to court. Supports single video or batch glob mode.
+
+options:
+  -h, --help            show this help message and exit
+  --video VIDEO         Path to a single video file.
+  --batch BATCH         Glob pattern for batch processing (e.g.
+                        "videos/wall/*.MOV").
+  --metadata METADATA   Path to JSON setup metadata file (from
+                        wall_calibration CLI).
+  --override OVERRIDE   Optional per-video override JSON file.
+  --output-dir OUTPUT_DIR
+                        Directory to write per-video results and aggregate
+                        CSV.
+  --manual-corrections MANUAL_CORRECTIONS
+                        Optional JSON mapping serve_index -> {"pixel_x": int,
+                        "pixel_y": int, "impact_frame": int (optional)}
+  --no-video            Suppress annotated MP4 generation.
+  --no-plots            Suppress plot PNG generation.
+  --fps FPS             Override video frame rate (frames per second).
+
+Examples:
+  # Single video
+  python -m serve_analyzer.wall_serve --video serve_01.MOV --metadata setup.json --output-dir results/
+
+  # Batch mode
+  python -m serve_analyzer.wall_serve --batch "videos/wall/*.MOV" --metadata setup.json --output-dir results/
+
+  # With per-video override and manual corrections
+  python -m serve_analyzer.wall_serve --video serve_01.MOV --metadata setup.json --output-dir results/ \
+      --override override.json --manual-corrections corrections.json
+        
+
+## web vitest regression
+
+> web@0.0.0 test
+> vitest --run
+
+
+ RUN  v4.1.5 /home/josevictor/Workspace/serve-analyzer/web
+
+
+ Test Files  8 passed (8)
+      Tests  46 passed (46)
+   Start at  18:18:47
+   Duration  1.50s (transform 536ms, setup 342ms, import 1.91s, tests 1.93s, environment 4.74s)
+
+
+## web production build
+
+> web@0.0.0 build
+> tsc -b && vite build
+
+vite v8.0.9 building client environment for production...
+[2Ktransforming...✓ 1823 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                           0.45 kB │ gzip:  0.28 kB
+dist/assets/geist-cyrillic-wght-normal-CHSlOQsW.woff2    14.69 kB
+dist/assets/geist-latin-ext-wght-normal-DMtmJ5ZE.woff2   15.30 kB
+dist/assets/geist-latin-wght-normal-Dm3htQBi.woff2       28.40 kB
+dist/assets/index-DUa6oejE.css                           58.46 kB │ gzip: 10.45 kB
+dist/assets/index-DeJguyvB.js                           327.35 kB │ gzip: 99.23 kB
+
+✓ built in 212ms
+
+## exit statuses
+python_unittest=0
+web_vitest=0
+web_build=0
