@@ -27,6 +27,12 @@ from serve_analyzer.wall_calibration import (
     pixel_to_wall,
     WallCalibrationError,
 )
+from serve_analyzer.wall_outputs import (
+    WallAnalysisResult,
+    to_json,
+    serve_to_csv_row,
+    write_csv,
+)
 
 
 @dataclass(frozen=True)
@@ -798,3 +804,394 @@ def project_to_court(
         uncertainty=uncertainty,
         warnings=warnings,
     )
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+import argparse
+import glob
+import json
+import sys
+from typing import Sequence
+
+
+def _error_json(message: str, code: str = "validation_error") -> int:
+    """Write structured error to stderr and return exit code 2."""
+    sys.stderr.write(json.dumps({"error": message, "code": code}) + "\n")
+    return 2
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build argparse for wall analysis orchestration CLI."""
+    parser = argparse.ArgumentParser(
+        prog="python -m serve_analyzer.wall_serve",
+        description=(
+            "Analyze wall-serve videos: detect impact, estimate speed, project to court. "
+            "Supports single video or batch glob mode."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Single video
+  %(prog)s --video serve_01.MOV --metadata setup.json --output-dir results/
+
+  # Batch mode
+  %(prog)s --batch "videos/wall/*.MOV" --metadata setup.json --output-dir results/
+
+  # With per-video override and manual corrections
+  %(prog)s --video serve_01.MOV --metadata setup.json --output-dir results/ \\
+      --override override.json --manual-corrections corrections.json
+        """,
+    )
+
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--video",
+        help="Path to a single video file.",
+    )
+    source.add_argument(
+        "--batch",
+        help='Glob pattern for batch processing (e.g. "videos/wall/*.MOV").',
+    )
+
+    parser.add_argument(
+        "--metadata",
+        required=True,
+        help="Path to JSON setup metadata file (from wall_calibration CLI).",
+    )
+    parser.add_argument(
+        "--override",
+        help="Optional per-video override JSON file.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Directory to write per-video results and aggregate CSV.",
+    )
+    parser.add_argument(
+        "--manual-corrections",
+        help='Optional JSON mapping serve_index -> {"pixel_x": int, "pixel_y": int}',
+    )
+    parser.add_argument(
+        "--no-video",
+        action="store_true",
+        default=False,
+        help="Suppress annotated MP4 generation.",
+    )
+    parser.add_argument(
+        "--no-plots",
+        action="store_true",
+        default=False,
+        help="Suppress plot PNG generation.",
+    )
+    parser.add_argument(
+        "--fps",
+        type=float,
+        default=None,
+        help="Override video frame rate (frames per second).",
+    )
+
+    return parser
+
+
+def _load_json(path: str) -> dict:
+    """Load and parse a JSON file."""
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _get_fps(video_path: str, fps_override: float | None = None) -> float:
+    """Return video fps, using override if provided."""
+    if fps_override is not None:
+        return fps_override
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video: {video_path}")
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    cap.release()
+    if fps <= 0:
+        raise ValueError(f"Invalid FPS ({fps}) for video: {video_path}")
+    return float(fps)
+
+
+def _apply_override(calibration: WallCalibration, override: dict | None) -> WallCalibration:
+    """Apply per-video override dict onto a calibration instance."""
+    if override is None:
+        return calibration
+    data = calibration.to_dict()
+    vo = override.get("video_override", override)
+    if isinstance(vo, dict):
+        for key, value in vo.items():
+            if key == "wall_reference_points" and isinstance(value, list):
+                data["setup"][key] = value
+            elif key == "hook_reference" and isinstance(value, dict):
+                data["setup"][key] = value
+            elif key == "chair_references" and isinstance(value, list):
+                data["setup"][key] = value
+            else:
+                data["setup"][key] = value
+    return WallCalibration.from_dict(data)
+
+
+def _load_manual_corrections(path: str | None) -> dict | None:
+    """Load manual corrections JSON mapping serve_index -> correction dict."""
+    if path is None:
+        return None
+    raw = _load_json(path)
+    # Normalize to dict keyed by string serve_index
+    corrections: dict = {}
+    for key, value in raw.items():
+        corrections[str(key)] = value
+    return corrections
+
+
+def _process_video(
+    video_path: str,
+    calibration: WallCalibration,
+    output_dir: Path,
+    *,
+    no_video: bool = False,
+    no_plots: bool = False,
+    manual_corrections: dict | None = None,
+    fps_override: float | None = None,
+) -> dict:
+    """Run full analysis pipeline on one video and write artifacts.
+
+    Returns a dict with per-serve results for aggregation.
+    """
+    video_path_obj = Path(video_path)
+    video_stem = video_path_obj.stem
+
+    # Load fps
+    fps = _get_fps(video_path, fps_override)
+
+    # Determine manual correction for serve_index 0 (MVP: one serve per video)
+    correction = None
+    if manual_corrections is not None:
+        correction = manual_corrections.get("0") or manual_corrections.get(0)
+        if correction is not None:
+            # Normalize to expected dict shape
+            px = correction.get("pixel_x")
+            py = correction.get("pixel_y")
+            if px is not None and py is not None:
+                correction = {"impact_pixel": (float(px), float(py))}
+
+    # --- Detection ---
+    impact_result = detect_wall_impact(
+        video_path, calibration, manual_correction=correction
+    )
+
+    # --- Speed estimation ---
+    speed_result = estimate_pre_wall_speed(
+        impact_result, calibration, fps=fps, min_samples=4
+    )
+
+    # --- Court projection ---
+    projection_result = project_to_court(speed_result, calibration)
+
+    # --- Assemble WallAnalysisResult ---
+    result = WallAnalysisResult()
+    result.measured = {
+        "impact_time_sec": (
+            impact_result.impact_frame / fps if impact_result.impact_frame is not None else None
+        ),
+        "impact_frame": impact_result.impact_frame,
+        "wall_x_m": None,
+        "wall_y_m": None,
+    }
+    result.inferred = {
+        "speed_m_s": speed_result.speed_m_s,
+        "speed_km_h": speed_result.speed_km_h,
+        "speed_mph": speed_result.speed_mph,
+        "landing_x_m": projection_result.landing_x_m,
+        "landing_z_m": projection_result.landing_z_m,
+        "in_service_box": projection_result.in_service_box,
+        "service_box_side": projection_result.service_box_side,
+    }
+    result.assumed = projection_result.assumptions
+    result.confidence = {
+        "speed_uncertainty_m_s": speed_result.uncertainty_m_s,
+        "samples_used": speed_result.samples_used,
+        "impact_confidence": impact_result.confidence,
+    }
+    result.warnings = list(
+        set(impact_result.warnings + speed_result.warnings + projection_result.warnings)
+    )
+
+    # --- T10 artifact hooks (optional) ---
+    artifacts: dict = {"annotated_video": None, "plots": {}}
+    if not no_video or not no_plots:
+        try:
+            from serve_analyzer.wall_artifacts import (
+                render_annotated_video,
+                render_plots,
+            )
+        except ImportError:
+            if not no_video:
+                sys.stderr.write(
+                    "Warning: wall_artifacts module not found; skipping annotated video generation.\n"
+                )
+            if not no_plots:
+                sys.stderr.write(
+                    "Warning: wall_artifacts module not found; skipping plot generation.\n"
+                )
+        else:
+            if not no_video:
+                annotated_path = output_dir / f"{video_stem}_annotated.mp4"
+                try:
+                    render_annotated_video(
+                        video_path,
+                        result,
+                        impact_result,
+                        calibration,
+                        str(annotated_path),
+                    )
+                    artifacts["annotated_video"] = str(annotated_path)
+                except Exception as exc:
+                    sys.stderr.write(f"Warning: annotated video generation failed: {exc}\n")
+            if not no_plots:
+                plots_dir = output_dir / "plots"
+                plots_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    plot_paths = render_plots(
+                        video_path, result, impact_result, calibration, str(plots_dir)
+                    )
+                    artifacts["plots"] = plot_paths
+                except Exception as exc:
+                    sys.stderr.write(f"Warning: plot generation failed: {exc}\n")
+
+    result.artifacts = artifacts
+
+    # --- Write JSON ---
+    result_path = output_dir / "result.json"
+    result_path.write_text(json.dumps(to_json(result), indent=2), encoding="utf-8")
+
+    # --- Write CSV ---
+    serve_row = {
+        "video": video_stem,
+        "serve_index": 0,
+        "impact_time_sec": result.measured.get("impact_time_sec"),
+        "impact_frame": result.measured.get("impact_frame"),
+        "wall_x_m": result.measured.get("wall_x_m"),
+        "wall_y_m": result.measured.get("wall_y_m"),
+        "speed_m_s": result.inferred.get("speed_m_s"),
+        "speed_km_h": result.inferred.get("speed_km_h"),
+        "speed_mph": result.inferred.get("speed_mph"),
+        "landing_x_m": result.inferred.get("landing_x_m"),
+        "landing_z_m": result.inferred.get("landing_z_m"),
+        "in_service_box": result.inferred.get("in_service_box"),
+        "confidence_score": result.confidence.get("speed_uncertainty_m_s"),
+        "warning_codes": result.warnings,
+    }
+    csv_path = output_dir / "result.csv"
+    write_csv(csv_path, [serve_to_csv_row(serve_row)])
+
+    return serve_row
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point for wall analysis orchestration.
+
+    Args:
+        argv: Command-line arguments (defaults to sys.argv[1:]).
+
+    Returns:
+        Exit code (0 on success, 2 on validation error, 1 on unexpected error).
+    """
+    parser = _build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit:
+        raise
+
+    # Load metadata
+    try:
+        metadata = _load_json(args.metadata)
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        return _error_json(f"Failed to load metadata: {exc}", code="metadata_load_error")
+
+    # Load optional override
+    override = None
+    if args.override:
+        try:
+            override = _load_json(args.override)
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            return _error_json(f"Failed to load override: {exc}", code="override_load_error")
+
+    # Load optional manual corrections
+    manual_corrections = None
+    if args.manual_corrections:
+        try:
+            manual_corrections = _load_manual_corrections(args.manual_corrections)
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            return _error_json(
+                f"Failed to load manual corrections: {exc}",
+                code="manual_corrections_load_error",
+            )
+
+    # Resolve video list
+    video_paths: list[str] = []
+    if args.video:
+        video_paths = [args.video]
+    elif args.batch:
+        video_paths = glob.glob(args.batch)
+        if not video_paths:
+            return _error_json(
+                f"No videos matched glob pattern: {args.batch}",
+                code="batch_no_match",
+            )
+        video_paths.sort()
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    all_rows: list[dict] = []
+
+    for video_path in video_paths:
+        try:
+            calibration = WallCalibration.from_dict(metadata)
+        except Exception as exc:
+            return _error_json(
+                f"Calibration validation failed for {video_path}: {exc}",
+                code="calibration_error",
+            )
+
+        if override is not None:
+            try:
+                calibration = _apply_override(calibration, override)
+            except Exception as exc:
+                return _error_json(
+                    f"Override application failed for {video_path}: {exc}",
+                    code="override_error",
+                )
+
+        video_output_dir = output_dir / Path(video_path).stem
+        video_output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            row = _process_video(
+                video_path,
+                calibration,
+                video_output_dir,
+                no_video=args.no_video,
+                no_plots=args.no_plots,
+                manual_corrections=manual_corrections,
+                fps_override=args.fps,
+            )
+            all_rows.append(row)
+        except Exception as exc:
+            sys.stderr.write(f"Error processing {video_path}: {exc}\n")
+            return 1
+
+    # Aggregate CSV
+    if len(all_rows) > 1 or (len(all_rows) == 1 and args.batch):
+        aggregate_path = output_dir / "all_serves.csv"
+        csv_rows = [serve_to_csv_row(row) for row in all_rows]
+        write_csv(aggregate_path, csv_rows)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
