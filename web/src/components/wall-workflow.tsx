@@ -3,6 +3,7 @@ import { WallUploadStep, WallMetadataDisplay } from './wall-upload-step';
 import { WallCalibrationCanvas, type CalibrationPoint } from './wall-calibration-canvas';
 import { WallAssumptionsForm } from './wall-assumptions-form';
 import { WallAnalyzeStep } from './wall-analyze-step';
+import { WallResultsDashboard } from './wall-results-dashboard';
 import { resetWallJob } from '@/lib/wall-api';
 import type { WallVideoUploadResponse } from '@/lib/wall-types';
 import { Button } from '@/components/ui/button';
@@ -156,12 +157,10 @@ export function WallWorkflow() {
           />
         )}
 
-        {activeStep === 'results' && videoData && (
-          <div className="w-full max-w-2xl space-y-6">
-            <WallMetadataDisplay data={videoData} />
-            <PlaceholderCard title="Results">
-              <p>View wall impact analysis, velocity estimates, and landing projections.</p>
-            </PlaceholderCard>
+        {activeStep === 'results' && analysisResult && (
+          <div className="w-full space-y-6">
+            {videoData && <WallMetadataDisplay data={videoData} />}
+            <WallResultsDashboard result={analysisResult as Record<string, unknown>} />
           </div>
         )}
       </div>

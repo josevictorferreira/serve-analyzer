@@ -395,7 +395,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): run wall analysis from UI` | Files: `web/src/*`, `web/src/lib/*`, `web/src/**/*.test.*`
 
-- [ ] 8. Wall results dashboard with graphs, video crop, velocity, and court position
+- [x] 8. Wall results dashboard with graphs, video crop, velocity, and court position
 
   **What to do**: Build `WallResultsDashboard` that renders the full six-section contract. Required panels: measured impact (`impact_time_sec`, `impact_frame`, `impact_pixel`, `wall_x_m`, `wall_y_m`, RMS, raw sample summary), velocity (`speed_m_s`, `speed_km_h`, `speed_mph`, uncertainty), court projection (`landing_x_m`, `landing_z_m`, `in_service_box`, `service_box_side`, sensitivities), assumptions, confidence, warnings, artifact links, raw JSON viewer/link, CSV preview/link. Add full annotated MP4 player with “Jump to impact” seeking to `impact_time_sec`. Add impact review crop player for `review_clip.url`. Add graph gallery for speed, trajectory/court landing, and wall impact plots; every image must have alt text and loading/error states. Show autonomous vs final impact fields and an out-of-MVP note for future manual correction if detection is wrong.
   **Must NOT do**: Do not hide warnings/confidence behind raw JSON only. Do not require a user to inspect local files outside browser.
