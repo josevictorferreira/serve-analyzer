@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from io import StringIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import cv2
 
@@ -116,7 +116,7 @@ class TestRotatedVideoMetadata(unittest.TestCase):
     """Rotated video metadata (swapped dims) handled without unhandled exceptions."""
 
     def test_rotated_video_metadata_via_mock(self):
-        """Patch VideoCapture to report swapped dims; pipeline must not crash."""
+        """Pipeline handles swapped video dimensions without crashing."""
         with tempfile.TemporaryDirectory() as tmpdir:
             cal_path = _make_calibration_json(tmpdir)
             video_path = Path(tmpdir) / "rotated_test.mp4"
@@ -131,21 +131,24 @@ class TestRotatedVideoMetadata(unittest.TestCase):
             )
             output_dir = Path(tmpdir) / "results"
 
-            # Build a mock VideoCapture that wraps the real one but swaps W/H.
-            _RealVC = cv2.VideoCapture
-
-            class _SwappedVC(_RealVC):
-                def get(self, prop):
-                    if prop == cv2.CAP_PROP_FRAME_WIDTH:
-                        return 480.0  # swapped
-                    if prop == cv2.CAP_PROP_FRAME_HEIGHT:
-                        return 640.0  # swapped
-                    return super().get(prop)
+            # Pure-Python fake VideoCapture that reports swapped dims.
+            # Do NOT subclass cv2.VideoCapture — native C++ destructor causes segfaults.
+            _fake_vc = MagicMock()
+            _fake_vc.isOpened.return_value = True
+            _fake_vc.get.side_effect = lambda prop: {
+                cv2.CAP_PROP_FRAME_WIDTH: 480.0,
+                cv2.CAP_PROP_FRAME_HEIGHT: 640.0,
+                cv2.CAP_PROP_FRAME_COUNT: 90.0,
+                cv2.CAP_PROP_FPS: 60.0,
+                cv2.CAP_PROP_POS_FRAMES: 0.0,
+            }.get(prop, 0.0)
+            _fake_vc.read.return_value = (False, None)
+            _fake_vc.set.return_value = True
 
             old_stderr = sys.stderr
             sys.stderr = StringIO()
             try:
-                with patch("serve_analyzer.wall_serve.cv2.VideoCapture", _SwappedVC):
+                with patch("serve_analyzer.wall_serve.cv2.VideoCapture", return_value=_fake_vc):
                     exit_code = main(
                         [
                             "--video", str(video_path),

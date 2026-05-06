@@ -390,3 +390,8 @@ score = clamp(base, 0, 1)
 - `test_wall_outputs.py::test_parseable_json_and_csv_from_analysis_result` updated: expected warning_codes changed from `""` to `"degraded_intrinsics"`.
 - Duplicate `setup.update(overrides)` in `test_wall_edge_cases.py::_make_calibration_dict` removed.
 - Root `result.json` (runtime artifact) removed from working tree.
+
+### Correction 2 (2026-05-06): Rotated metadata test segfault
+- Do NOT subclass `cv2.VideoCapture` in tests; native C++ destructor causes segfaults on cleanup.
+- Replaced `_SwappedVC(cv2.VideoCapture)` with pure-Python `MagicMock` that implements `isOpened`, `get`, `read`, `set`, `release` without any native inheritance.
+- The mock returns swapped dimensions (480×640 instead of 640×480) and `(False, None)` for reads, which triggers `insufficient_track` gracefully.

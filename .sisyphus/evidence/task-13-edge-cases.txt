@@ -22,11 +22,11 @@ No intrinsics block in metadata; verify pipeline handles it correctly. ... ok
 test_nonexistent_manual_correction_serve_index (test_wall_edge_cases.TestNonexistentManualCorrection.test_nonexistent_manual_correction_serve_index)
 Pass manual_corrections with key '99'; pipeline does not crash. ... ok
 test_rotated_video_metadata_via_mock (test_wall_edge_cases.TestRotatedVideoMetadata.test_rotated_video_metadata_via_mock)
-Patch VideoCapture to report swapped dims; pipeline must not crash. ... ok
+Pipeline handles swapped video dimensions without crashing. ... ok
 test_variable_fps_metadata_uses_override (test_wall_edge_cases.TestVariableFpsMetadata.test_variable_fps_metadata_uses_override)
 Synthetic 60 fps video with --fps 30 override; impact_time_sec uses 30 fps timeline. ... ok
 
 ----------------------------------------------------------------------
-Ran 7 tests in 1.874s
+Ran 7 tests in 1.706s
 
 OK
