@@ -26,6 +26,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Sequence
 
 
 # ---------------------------------------------------------------------------
@@ -550,3 +555,225 @@ def undistort_points(points_px: np.ndarray, intrinsics: Intrinsics) -> np.ndarra
     undistorted = undistorted.reshape(-1, 2)
 
     return undistorted
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def _parse_wall_points(raw: str) -> list:
+    """Parse semicolon-separated wall points into list of dicts."""
+    points = []
+    for i, group in enumerate(raw.split(";")):
+        parts = [p.strip() for p in group.split(",")]
+        if len(parts) != 4:
+            raise ValueError(
+                f"Wall point {i} needs 4 comma-separated values (px,py,wx,wy), got: {group!r}"
+            )
+        points.append({
+            "name": f"point_{i}",
+            "pixel": [float(parts[0]), float(parts[1])],
+            "wall_m": [float(parts[2]), float(parts[3])],
+        })
+    return points
+
+
+def _parse_point(raw: str) -> tuple:
+    """Parse 'x,y' into (x, y) floats."""
+    parts = [p.strip() for p in raw.split(",")]
+    if len(parts) != 2:
+        raise ValueError(f"Expected 'x,y', got: {raw!r}")
+    return (float(parts[0]), float(parts[1]))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build argparse for wall calibration CLI."""
+    parser = argparse.ArgumentParser(
+        prog="python -m serve_analyzer.wall_calibration",
+        description=(
+            "Create and manage wall-serve calibration metadata. "
+            "Generates a reusable JSON file mapping wall reference points "
+            "from pixels to real-world meters."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Non-interactive setup with 4 wall points
+  %(prog)s --mode setup \\\
+      --output setup.json \\\
+      --serve-contact-height 2.80 \\\
+      --wall-points "100,500,-4.0,0.0;700,500,4.0,0.0;100,100,-4.0,3.0;700,100,4.0,3.0" \\\
+      --hook-point "400,150" \\\
+      --chair-point "200,450"
+        """,
+    )
+
+    parser.add_argument(
+        "--mode",
+        choices=["setup", "override"],
+        default="setup",
+        help="Operation mode: 'setup' creates new calibration, 'override' modifies existing (default: setup).",
+    )
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Path to write the calibration JSON file.",
+    )
+    parser.add_argument(
+        "--serve-contact-height",
+        type=float,
+        default=None,
+        help="Ball contact height above court surface in meters (required for setup mode).",
+    )
+    parser.add_argument(
+        "--wall-points",
+        help='Semicolon-separated groups: "px,py,wx,wy;px,py,wx,wy;..." (required for setup mode).',
+    )
+    parser.add_argument(
+        "--hook-point",
+        help='Hook reference pixel coordinates: "x,y".',
+    )
+    parser.add_argument(
+        "--serve-contact-distance",
+        type=float,
+        default=None,
+        help="Distance from wall to serve contact point in meters (default: 6.11).",
+    )
+    parser.add_argument(
+        "--camera-wall-distance",
+        type=float,
+        default=None,
+        help="Distance from camera to wall in meters (default: 1.57).",
+    )
+    parser.add_argument(
+        "--chair-point",
+        action="append",
+        default=None,
+        help='Chair reference pixel coordinates: "x,y" (can be repeated).',
+    )
+
+    return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """CLI entry point for wall calibration."""
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit:
+        raise
+
+    def _err(message: str, code: str) -> None:
+        print(json.dumps({"error": message, "code": code}), file=sys.stderr)
+
+    if args.mode == "override":
+        # Override mode: write a minimal JSON with video_override keys.
+        vo: dict = {}
+        if args.serve_contact_height is not None:
+            vo["serve_contact_height_m"] = args.serve_contact_height
+        if args.serve_contact_distance is not None:
+            vo["serve_contact_distance_m"] = args.serve_contact_distance
+        if args.camera_wall_distance is not None:
+            vo["camera_wall_distance_m"] = args.camera_wall_distance
+        if args.wall_points:
+            try:
+                vo["wall_reference_points"] = _parse_wall_points(args.wall_points)
+            except ValueError as exc:
+                _err(str(exc), "invalid_wall_points")
+                return 2
+        if args.hook_point:
+            try:
+                px, py = _parse_point(args.hook_point)
+                vo["hook_reference"] = {"pixel": [px, py], "height_m": 2.45}
+            except ValueError as exc:
+                _err(f"Invalid --hook-point: {exc}", "invalid_hook_point")
+                return 2
+        if args.chair_point:
+            chair_refs = []
+            try:
+                for cp in args.chair_point:
+                    px, py = _parse_point(cp)
+                    chair_refs.append({"pixel": [px, py], "height_m": 1.0})
+                vo["chair_references"] = chair_refs
+            except ValueError as exc:
+                _err(f"Invalid --chair-point: {exc}", "invalid_chair_point")
+                return 2
+
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps({"video_override": vo}, indent=2), encoding="utf-8"
+        )
+        print(f"Wrote override to {output_path}")
+        return 0
+
+    # Setup mode.
+    if args.serve_contact_height is None:
+        _err("Missing required field: serve_contact_height_m", "missing_serve_contact_height")
+        return 2
+
+    if args.wall_points is None:
+        _err("Missing required field: wall_points (need at least 4)", "insufficient_wall_points")
+        return 2
+
+    try:
+        wall_points = _parse_wall_points(args.wall_points)
+    except ValueError as exc:
+        _err(str(exc), "invalid_wall_points")
+        return 2
+
+    if len(wall_points) < 4:
+        _err(
+            f"Expected at least 4 wall_reference_points, got {len(wall_points)}",
+            "insufficient_wall_points",
+        )
+        return 2
+
+    setup: dict = {
+        "serve_contact_distance_m": args.serve_contact_distance if args.serve_contact_distance is not None else 6.11,
+        "camera_wall_distance_m": args.camera_wall_distance if args.camera_wall_distance is not None else 1.57,
+        "serve_contact_height_m": args.serve_contact_height,
+        "wall_reference_points": wall_points,
+    }
+
+    if args.hook_point:
+        try:
+            px, py = _parse_point(args.hook_point)
+            setup["hook_reference"] = {"pixel": [px, py], "height_m": 2.45}
+        except ValueError as exc:
+            _err(f"Invalid --hook-point: {exc}", "invalid_hook_point")
+            return 2
+
+    if args.chair_point:
+        chair_refs = []
+        try:
+            for cp in args.chair_point:
+                px, py = _parse_point(cp)
+                chair_refs.append({"pixel": [px, py], "height_m": 1.0})
+            setup["chair_references"] = chair_refs
+        except ValueError as exc:
+            _err(f"Invalid --chair-point: {exc}", "invalid_chair_point")
+            return 2
+
+    try:
+        cal = WallCalibration.from_dict({"setup": setup})
+    except WallCalibrationError as exc:
+        _err(str(exc), "validation_error")
+        return 2
+
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(cal.to_dict(), indent=2), encoding="utf-8"
+    )
+    print(f"Wrote calibration to {output_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

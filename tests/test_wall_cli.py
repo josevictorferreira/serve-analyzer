@@ -160,6 +160,94 @@ class TestWallAnalysisCli(unittest.TestCase):
             self.assertEqual(len(mp4_files), 0)
             self.assertEqual(len(png_files), 0)
 
+    def test_documented_synthetic_workflow_command(self):
+        """The exact command pattern from README works with synthetic fixtures."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cal_path = self._make_calibration_json(tmpdir)
+            video_path = Path(tmpdir) / "synthetic_serve.MOV"
+            generate_wall_impact_video(
+                str(video_path),
+                width=640,
+                height=480,
+                wall_x_px=480,
+                impact_frame=30,
+                ball_speed_px_per_frame=8.0,
+            )
+            output_dir = Path(tmpdir) / "results"
+
+            old_stderr = sys.stderr
+            sys.stderr = StringIO()
+            try:
+                exit_code = self._run_main(
+                    [
+                        "--batch",
+                        str(Path(tmpdir) / "*.MOV"),
+                        "--metadata",
+                        str(cal_path),
+                        "--output-dir",
+                        str(output_dir),
+                        "--no-video",
+                        "--no-plots",
+                    ]
+                )
+            finally:
+                sys.stderr = old_stderr
+
+            self.assertEqual(exit_code, 0)
+
+            video_stem = video_path.stem
+            video_out = output_dir / video_stem
+            self.assertTrue(video_out.exists())
+
+            result_json = video_out / "result.json"
+            self.assertTrue(result_json.exists())
+            raw = json.loads(result_json.read_text(encoding="utf-8"))
+            self.assertIn("measured", raw)
+            self.assertIn("inferred", raw)
+
+            result_csv = video_out / "result.csv"
+            self.assertTrue(result_csv.exists())
+            lines = result_csv.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(len(lines), 2)  # header + 1 row
+
+            aggregate_csv = output_dir / "all_serves.csv"
+            self.assertTrue(aggregate_csv.exists())
+            agg_lines = aggregate_csv.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(len(agg_lines), 2)  # header + 1 row
+
+    def test_real_wall_video_examples_are_documented_only(self):
+        """Real wall video paths appear in docs but never in test code."""
+        repo_root = Path(__file__).resolve().parent.parent
+        readme_path = repo_root / "README.md"
+        wall_serve_path = repo_root / "serve_analyzer" / "wall_serve.py"
+
+        readme_text = readme_path.read_text(encoding="utf-8")
+        wall_serve_text = wall_serve_path.read_text(encoding="utf-8")
+
+        self.assertIn("videos/wall/", readme_text)
+        self.assertIn("videos/wall/", wall_serve_text)
+
+        test_files = list((repo_root / "tests").glob("test_wall_*.py"))
+        self.assertTrue(
+            len(test_files) > 0,
+            "Expected at least one test_wall_*.py file",
+        )
+
+        _video_pattern = "videos/wall/" + "IMG"
+        for test_file in test_files:
+            text = test_file.read_text(encoding="utf-8")
+            matches = [
+                line
+                for line in text.splitlines()
+                if _video_pattern in line
+            ]
+            self.assertEqual(
+                len(matches),
+                0,
+                f"{test_file.name} references real wall video: {matches}",
+            )
+
+
 
 if __name__ == "__main__":
     unittest.main()

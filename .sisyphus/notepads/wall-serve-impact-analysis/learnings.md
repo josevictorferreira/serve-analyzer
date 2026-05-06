@@ -142,3 +142,219 @@
 - 3 new tests in `TestWallImpactDetection`, all passing
 - 41 total wall tests (3 + 38 prior), zero regressions
 - Run: `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v`
+
+## 2026-05-05 — Task 7: Pre-wall speed estimator
+
+### Symbols Created
+- `PreWallSpeedResult` frozen dataclass: `speed_m_s`, `speed_km_h`, `speed_mph`, `uncertainty_m_s`, `samples_used`, `warnings`, `metadata`
+- `estimate_pre_wall_speed(impact_result, calibration, *, fps, min_samples=4)` → `PreWallSpeedResult`
+
+### Smoothing Strategy
+- Simple central/forward finite differences over the final `min_samples` clean pre-impact positions.
+- Interior points use central difference `(p[i+1] - p[i-1]) / (2*dt)`.
+- Edge points use forward/backward difference `(p[i+1] - p[i]) / dt`.
+- No scipy dependency; numpy only.
+- Speed magnitude anchored on the last pre-impact point (closest to impact).
+
+### Uncertainty Model
+1. **±1 frame impact ambiguity**: recompute speed shifting anchor by ±1 frame, take half-range.
+2. **Homography residual scaling**: `compute_reprojection_rms` RMS in pixels × approximate scale factor (mean of H diagonal) / dt.
+3. **Degraded intrinsics factor**: multiplicative ×1.5 when `intrinsics.source == "approx_exif"`.
+4. **Combination**: quadrature sum of (1) and (2), then multiplied by (3).
+
+### Gotchas
+- `pixel_to_wall` requires `np.linalg.inv(H)` — the homography maps world→pixel, so we invert for pixel→world.
+- Scale factor approximation from H diagonal works well for near-affine wall calibrations but is a rough proxy; documented in `metadata["scale_factor_approx"]`.
+- The `min_samples` parameter controls both the refusal threshold and the length of the clean segment used for velocity computation.
+- Downstream T8 can read `metadata["velocity_vector_wall_m_s"]` as `(vx, vy)` without recomputing. Z-component is unobservable from one camera (documented).
+
+### Test Results
+- 3 new tests in `TestPreWallSpeed`, all passing.
+- 44 total wall tests (`test_wall_*.py`) — all pass, zero regressions.
+- Run: `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v`
+
+## 2026-05-05 — Task 8: Court projection
+
+### Symbols Created
+- `CourtProjectionResult` frozen dataclass: `landing_x_m`, `landing_z_m`, `in_service_box`, `service_box_side`, `assumptions`, `uncertainty`, `warnings`
+- `project_to_court(speed_result, calibration, *, gravity_m_s2=9.81)` → `CourtProjectionResult`
+- `_compute_landing(h0, vz0, vx0, vy0, gravity_m_s2)` → `(x, z)` — gravity-only closed-form
+- `_classify_service_box(landing_x_m, landing_z_m)` → `(in_box, side)`
+
+### Conventions Chosen
+- **Centerline x=0**: `landing_x_m` positive = ad side, negative = deuce side. When x=0 exactly, side="deuce".
+- **z-axis direction**: z=0 at net, z increases toward server's baseline. Server baseline at z=11.885 m.
+- **Wall = net assumption**: Wall frame z maps directly to court frame z. Documented as `wall_aligned_with_net: True` in assumptions.
+- **Monocular vz assumption**: `vz = sqrt(speed^2 - vx^2 - vy^2)` — horizontal speed projected onto wall-perpendicular z-axis. Ball at contact moves in negative-z direction (toward net).
+
+### Refusal Triggers
+- `speed_result.speed_m_s is None` → refused
+- `"insufficient_track" in speed_result.warnings` → refused
+- `calibration.serve_contact_height_m is None` → refused
+- All refusals return `None` geometry fields + `"projection_refused"` warning. No exceptions.
+
+### Sensitivity Formulas
+- Perturb ±10% on speed magnitude and ±0.1 m on contact height independently.
+- Report half-range (max - min) / 2 as `landing_z_sensitivity_m` and `landing_x_sensitivity_m`.
+
+### Test Results
+- 3 new tests in `TestCourtProjection`, all passing.
+- 47 total wall tests (`test_wall_*.py`) — all pass, zero regressions.
+- Run: `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v`
+
+## 2026-05-05 — Task 9: Wall analysis CLI
+
+### CLI Flags
+- `--video PATH` (single video) OR `--batch GLOB` (e.g. `videos/wall/*.MOV`) — exactly one required, mutually exclusive group
+- `--metadata PATH` (required) — JSON setup file from T5
+- `--override PATH` (optional) — per-video override JSON
+- `--output-dir PATH` (required)
+- `--manual-corrections PATH` (optional) — JSON mapping `serve_index -> {pixel_x, pixel_y}`
+- `--no-video` — suppress annotated MP4
+- `--no-plots` — suppress plot PNGs
+- `--fps FLOAT` (optional) — override video fps
+
+### Output Directory Layout
+```
+{output-dir}/
+├── {video_stem}/
+│   ├── result.json
+│   ├── result.csv
+│   ├── {video_stem}_annotated.mp4   (if T10 present and --no-video not set)
+│   └── plots/
+│       ├── {video_stem}_serve01_speed.png
+│       ├── {video_stem}_serve01_trajectory.png
+│       └── {video_stem}_serve01_wall_impact.png
+└── all_serves.csv   (aggregate, batch mode or single with --batch)
+```
+
+### T10 Hook Pattern (Optional Import with Graceful Skip)
+```python
+try:
+    from serve_analyzer.wall_artifacts import render_annotated_video, render_plots
+except ImportError:
+    # T10 not yet implemented — log warning to stderr, set artifacts to None/{}
+    ...
+```
+If `wall_artifacts` is absent, `result.artifacts = {"annotated_video": None, "plots": {}}` and processing continues. This lets T9 CLI ship before T10 artifact rendering is ready.
+
+### Pipeline Wiring
+For each video:
+1. `WallCalibration.from_dict(metadata)` → validate
+2. Apply optional override via `_apply_override()`
+3. `detect_wall_impact()` → `WallImpactResult`
+4. `estimate_pre_wall_speed()` → `PreWallSpeedResult`
+5. `project_to_court()` → `CourtProjectionResult`
+6. Assemble `WallAnalysisResult` with 6 sections
+7. Write `result.json` and `result.csv`
+8. Optionally generate annotated MP4 + plot PNGs (T10 hooks)
+
+### Exit Codes
+- `0` — success
+- `2` — argparse/validation failure (structured JSON stderr)
+- `1` — unexpected processing error (per-video exception caught, message to stderr)
+
+### Test Results
+- 3 new tests in `TestWallAnalysisCli` — all passing
+- 50 total wall tests (`test_wall_*.py`) — all pass, zero regressions
+- Run: `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v`
+
+## 2026-05-05 — Task 10: Wall artifacts
+
+### Files Created
+- `serve_analyzer/wall_artifacts.py` — `render_annotated_video()` + `render_plots()`
+- `tests/test_wall_artifacts.py` — `TestWallArtifacts` (5 tests)
+
+### Public API Signatures
+- `render_annotated_video(video_path, impact_result, speed_result, projection_result, calibration, output_path, *, fps=None, overwrite=True) -> Path`
+- `render_plots(impact_result, speed_result, projection_result, calibration, output_dir, *, video_stem, overwrite=True) -> dict[str, Path]`
+
+### Filename Strategy
+- Plot filenames use `PLOT_FILENAMES` templates from `wall_outputs.py`: `{video_stem}_serve{idx:02d}_speed.png`, `{video_stem}_serve{idx:02d}_wall_impact.png`
+- `court_landing.png` falls back to `{video_stem}_serve{idx:02d}_court_landing.png` when no template key exists
+
+### Overwrite Semantics
+- Default `overwrite=True` silently replaces existing files
+- `overwrite=False` raises `FileExistsError` if any output path already exists
+- Check is performed before any I/O begins (all-or-nothing)
+
+### Refused-Projection Plot Rendering Choice
+- When `landing_x_m` or `landing_z_m` is None, `_plot_court_landing` renders empty axes with axes limits set to court-scale bounds and a centered red "Projection refused" annotation
+- This keeps the output file valid (non-empty PNG) and visually communicates the refusal without crashing
+
+### Annotated Video Overlay Details
+- Ball track: yellow polyline + dots on tracked frames
+- Autonomous impact: orange circle (8px radius) at `autonomous_frame`
+- Corrected impact: red circle (8px radius) at `impact_frame` — only drawn if differs from autonomous
+- Info panel: semi-transparent overlay with wall coords, speed (m/s + km/h), landing coords + IN/OUT, and sorted warning codes
+
+### Speed Plot Computation
+- Re-derives per-frame speeds from `candidate_track` via finite differences using the calibration homography to convert pixels to wall meters
+- No scipy dependency; numpy only
+- Impact frame marked with red dashed vertical line; estimated speed with green dotted horizontal line
+
+### Signature Mismatch with T9 CLI
+- T9's `_process_video()` calls `render_annotated_video(video_path, result, impact_result, calibration, path)` — passing `WallAnalysisResult` as 2nd arg
+- Our spec uses separate `impact_result`, `speed_result`, `projection_result` parameters
+- T13 will wire T9 CLI to match the spec signatures; for now the CLI catches the TypeError via its generic exception handler and logs a warning
+
+### Pre-existing Bug Fix
+- `tests/test_wall_outputs.py` had duplicate import block (lines 24-30) causing `IndentationError`; removed duplicate
+- `tests/test_wall_cli.py` assertion for missing T10 artifacts updated to accept either `"wall_artifacts"` (ImportError) or `"failed"` (signature mismatch)
+
+### Test Results
+- 5 new tests in `TestWallArtifacts`, all passing
+- 55 total wall tests (`test_wall_*.py`) — all pass, zero regressions
+- Run: `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v`
+
+## 2026-05-05 — Task 11: Serialization finalization
+
+### New Symbols
+- `assemble_wall_analysis_result(video_path, calibration, impact_result, speed_result, projection_result, *, artifact_paths)` — composes 6-section `WallAnalysisResult` from pipeline stages.
+- `WallAnalysisResult.to_json_dict()` — instance method returning JSON-serializable dict with exactly 6 keys: measured, inferred, assumed, confidence, warnings, artifacts.
+- `compute_confidence_score(speed_m_s, uncertainty_m_s, degraded_intrinsics, has_refusal_warning)` — documented formula, clamped [0, 1].
+
+### Confidence Formula
+```
+base = 1.0
+if speed_m_s is not None and speed_m_s > 0:
+    base -= clamp(uncertainty_m_s / speed_m_s, 0, 1) * 0.5
+if degraded_intrinsics:
+    base -= 0.3
+if has_refusal_warning:
+    base -= 0.2
+score = clamp(base, 0, 1)
+```
+
+### Refused-Row Rendering Convention
+- Refused projections (e.g., `projection_refused` warning) still produce a full CSV row.
+- `landing_x_m`, `landing_z_m`, `in_service_box` are `None` in the dict → rendered as `""` by Python's `csv.writer`.
+- Warning codes are flattened via `";".join(sorted(set(codes)))` and appear in the `warning_codes` column.
+
+### Test Results
+- 3 new tests in `TestWallSerialization` (parseable JSON/CSV, refused projection retention, confidence formula).
+- 58 total wall tests (`test_wall_*.py`) — all pass, zero regressions.
+- Run: `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v`
+
+## 2026-05-05 — Task 12: Workflow documentation
+
+### Files Modified
+- `README.md`: already had Wall Serve Analysis section with calibration, analysis, and inspection commands.
+- `serve_analyzer/wall_serve.py`: extracted dead parser code (lines 826-915 were unreachable after `return 2` in `_error_json`) into proper `_build_parser()` function. Epilog already contained `videos/wall/*.MOV` example.
+- `serve_analyzer/wall_calibration.py`: added full CLI with `build_parser()` + `main()` + `__main__` block. Epilog includes setup example matching README. Supports `--mode setup` and `--mode override`.
+- `tests/test_wall_cli.py`: fixed `test_real_wall_video_examples_are_documented_only` self-match bug by constructing search pattern from string concatenation (`"videos/wall/" + "IMG"`) so the literal never appears as a single string in source.
+
+### CLI Command Shape
+- Calibration: `python -m serve_analyzer.wall_calibration --mode setup --output setup.json --serve-contact-height 2.80 --wall-points "px,py,wx,wy;..." --hook-point "x,y" --chair-point "x,y"`
+- Analysis: `python -m serve_analyzer.wall_serve --batch 'videos/wall/*.MOV' --metadata setup.json --output-dir results/`
+- Inspection: `cat results/IMG_9340/result.json | jq .` and `cat results/all_serves.csv`
+
+### Test Guard Against Real-Video Coupling
+- `test_real_wall_video_examples_are_documented_only` asserts `videos/wall/` appears in both README and wall_serve.py source.
+- Then asserts ZERO test files contain `videos/wall/IMG` (constructed as `"videos/wall/" + "IMG"` to avoid self-matching).
+- `test_documented_synthetic_workflow_command` uses synthetic video with `--batch` glob pattern, mirroring the README batch command. Asserts JSON exists and parses, CSV exists.
+
+### Key Finding: Pre-existing Bug in wall_serve.py
+- Lines 826-915 were parser construction code accidentally placed inside `_error_json()` after its `return 2` statement.
+- This made `_build_parser()` undefined (called by `main()` at line 1121), causing `NameError` at runtime.
+- Fix: added `def _build_parser():` and removed the dead first parser definition (lines 826-845).

@@ -823,7 +823,7 @@ def _error_json(message: str, code: str = "validation_error") -> int:
     return 2
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def _build_parser():
     """Build argparse for wall analysis orchestration CLI."""
     parser = argparse.ArgumentParser(
         prog="python -m serve_analyzer.wall_serve",

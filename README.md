@@ -186,3 +186,69 @@ python -m unittest discover -s tests -v
 # Check CLI help alignment
 python -m serve_analyzer.cli --help
 ```
+
+## Wall Serve Analysis
+
+A dedicated pipeline for estimating tennis serve velocity and landing projection from **lateral wall-impact video**. The camera faces a wall from the side; the ball travels toward the wall and makes contact at a known height. The system detects impact frame and pixel, estimates pre-impact speed, and projects the equivalent no-wall landing onto a regulation tennis court using gravity-only physics (no spin or drag).
+
+### Calibration
+
+Before analyzing videos, create a reusable calibration JSON that maps wall reference points from pixels to real-world meters.
+You need at least four wall reference points, the serve contact height, and optional hook or chair references for vertical scale.
+
+```bash
+# Non-interactive setup with 4 wall points
+nix develop --command python -m serve_analyzer.wall_calibration --mode setup \
+    --output setup.json \
+    --serve-contact-height 2.80 \
+    --wall-points "100,500,-4.0,0.0;700,500,4.0,0.0;100,100,-4.0,3.0;700,100,4.0,3.0" \
+    --hook-point "400,150" \
+    --chair-point "200,450"
+```
+
+- `--serve-contact-height` is required and sets the ball contact height above the court surface (meters).
+- `--wall-points` takes semicolon-separated groups of four values: `pixel_x,pixel_y,wall_x_m,wall_y_m`.
+- `--hook-point` and `--chair-point` are optional vertical references.
+- `--serve-contact-distance` and `--camera-wall-distance` default to 6.11 m and 1.57 m.
+
+### Analysis
+
+Run the wall-serve pipeline against one video or a batch glob. The CLI writes per-video `result.json` and `result.csv`, plus an aggregate `all_serves.csv` when batch mode is used.
+
+```bash
+# Single video
+nix develop --command python -m serve_analyzer.wall_serve \
+    --video serve_01.MOV \
+    --metadata setup.json \
+    --output-dir results/
+
+# Batch mode against real wall videos (user execution only)
+nix develop --command python -m serve_analyzer.wall_serve \
+    --batch 'videos/wall/*.MOV' \
+    --metadata setup.json \
+    --output-dir results/
+```
+
+Real `videos/wall/*.MOV` files (for example `IMG_9340.MOV` through `IMG_9347.MOV`) are referenced as user examples. Automated tests use synthetic fixtures and never open real wall videos.
+
+### Output Inspection
+
+```bash
+# Inspect per-video JSON
+cat results/IMG_9340/result.json | jq .
+
+# View aggregate CSV
+cat results/all_serves.csv
+```
+
+The JSON contains six top-level sections: `measured`, `inferred`, `assumed`, `confidence`, `warnings`, and `artifacts`. The CSV follows the stable column order defined in `serve_analyzer/wall_calibration.py`.
+
+### Optional Flags
+
+| Flag | Description |
+|------|-------------|
+| `--override` | Per-video override JSON (e.g. different contact height) |
+| `--manual-corrections` | JSON mapping `serve_index` to corrected `pixel_x`/`pixel_y` |
+| `--no-video` | Skip annotated MP4 generation |
+| `--no-plots` | Skip plot PNG generation |
+| `--fps` | Override video frame rate |
