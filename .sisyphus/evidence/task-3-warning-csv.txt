@@ -1,0 +1,26 @@
+Warning CSV Determinism Evidence
+================================
+
+Date: 2026-05-05
+
+Test: test_warning_codes_flatten_deterministically
+Module: serve_analyzer.wall_outputs._flatten_warning_codes
+
+Input (unordered): ["manual_correction_used", "degraded_intrinsics", "insufficient_track"]
+Input (reversed):  ["insufficient_track", "degraded_intrinsics", "manual_correction_used"]
+
+Output (both calls): "degraded_intrinsics;insufficient_track;manual_correction_used"
+
+Properties verified:
+1. Deterministic: two calls with different input order produce identical output
+2. No JSON braces: output does not contain "{", "}", "[", "]"
+3. Sorted alphabetically: codes appear in lexicographic order
+4. Semicolon-delimited: single separator between codes
+5. Works with both "warnings" (list) and "warning_codes" (list or str) serve dict keys
+
+Minimum WARNING_CODES set (from wall_calibration.py, locked):
+- degraded_intrinsics
+- insufficient_track
+- manual_correction_used
+- projection_refused
+- low_calibration_confidence

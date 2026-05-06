@@ -1,0 +1,33 @@
+Task 3: Define result contracts for JSON, CSV, plots, and warnings
+================================================================
+
+Date: 2026-05-05
+
+Files Created:
+- serve_analyzer/wall_outputs.py (151 lines)
+- tests/test_wall_outputs.py (269 lines)
+
+Symbols Exposed:
+- WallAnalysisResult (dataclass): measured, inferred, assumed, confidence, warnings, artifacts
+- to_json(result: WallAnalysisResult) -> dict[str, Any]: returns JSON-serializable dict with exactly 6 top-level keys
+- serve_to_csv_row(serve: dict) -> tuple: flattens one serve into CSV_COLUMNS order
+- write_csv(path, rows: list[tuple]): writes header from CSV_COLUMNS then rows
+- PLOT_FILENAMES: dict with keys "speed", "trajectory", "wall_impact" (deterministic templates)
+- _flatten_warning_codes(codes: list[str]) -> str: sorted semicolon-joined warning codes
+
+Test Results (10 tests, all passing):
+- test_json_and_csv_contract: JSON has exactly {"measured","inferred","assumed","confidence","warnings","artifacts"}; CSV row length == len(CSV_COLUMNS); column order matches CSV_COLUMNS
+- test_warning_codes_flatten_deterministically: identical output across two calls with reversed input; no JSON braces in cell
+- test_csv_round_trip_via_csv_module: write via csv.writer, read via csv.reader, header == CSV_COLUMNS, data preserved
+- test_plot_filenames_are_deterministic: same args produce identical strings
+- test_minimum_warning_codes_present: WARNING_CODES contains all 5 required codes
+- test_no_extra_top_level_keys: no extra keys beyond the 6 required
+- test_json_serializable: json.dumps/json.loads round-trip succeeds
+- test_missing_fields_filled_with_none: partial serve dict fills missing fields with None
+- test_warning_codes_as_string: string warning_codes handled correctly
+- test_warning_codes_from_warnings_key: warnings key used when warning_codes absent
+
+Regression Results (26 tests total, all passing):
+- 13 tests: test_wall_calibration.py (unchanged)
+- 10 tests: test_wall_outputs.py (new)
+-  3 tests: test_wall_synthetic.py (unchanged)
