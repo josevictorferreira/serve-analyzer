@@ -1,0 +1,45 @@
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+test_csv_field_names_exposed (test_wall_calibration.TestWallMetadataSchema.test_csv_field_names_exposed)
+Module exposes CSV_COLUMNS in the exact required order. ... ok
+test_fewer_than_four_wall_points_rejected (test_wall_calibration.TestWallMetadataSchema.test_fewer_than_four_wall_points_rejected)
+Fewer than 4 wall_reference_points raises WallCalibrationError. ... ok
+test_intrinsics_non_none_requires_dist_coeffs (test_wall_calibration.TestWallMetadataSchema.test_intrinsics_non_none_requires_dist_coeffs)
+Non-'none' source without dist_coeffs raises WallCalibrationError. ... ok
+test_intrinsics_non_none_requires_matrix (test_wall_calibration.TestWallMetadataSchema.test_intrinsics_non_none_requires_matrix)
+Non-'none' source without camera_matrix raises WallCalibrationError. ... ok
+test_intrinsics_none_does_not_require_matrix (test_wall_calibration.TestWallMetadataSchema.test_intrinsics_none_does_not_require_matrix)
+source='none' is accepted without camera_matrix or dist_coeffs. ... ok
+test_manual_corrections_optional (test_wall_calibration.TestWallMetadataSchema.test_manual_corrections_optional)
+manual_corrections is accepted as an optional dict keyed by serve_index. ... ok
+test_missing_contact_height_rejected (test_wall_calibration.TestWallMetadataSchema.test_missing_contact_height_rejected)
+Missing serve_contact_height_m raises WallCalibrationError. ... ok
+test_optional_intrinsics_accepted (test_wall_calibration.TestWallMetadataSchema.test_optional_intrinsics_accepted)
+All valid intrinsics_source values are accepted. ... ok
+test_regulation_court_constants_exposed (test_wall_calibration.TestWallMetadataSchema.test_regulation_court_constants_exposed)
+Module exposes regulation court dimensions in meters. ... ok
+test_to_dict_roundtrip (test_wall_calibration.TestWallMetadataSchema.test_to_dict_roundtrip)
+to_dict() produces a dict that from_dict() can reconstruct. ... ok
+test_valid_reusable_setup (test_wall_calibration.TestWallMetadataSchema.test_valid_reusable_setup)
+Accept a well-formed dict with all required fields. ... ok
+test_video_override_optional (test_wall_calibration.TestWallMetadataSchema.test_video_override_optional)
+video_override is accepted as an optional per-video dict. ... ok
+test_warning_codes_frozenset (test_wall_calibration.TestWallMetadataSchema.test_warning_codes_frozenset)
+WARNING_CODES contains the minimum required codes. ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.001s
+
+OK

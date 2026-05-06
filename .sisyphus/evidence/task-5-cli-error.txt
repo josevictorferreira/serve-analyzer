@@ -1,0 +1,32 @@
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+{"error": "Missing required field: serve_contact_height_m", "code": "missing_serve_contact_height"}
+Exit code: 2
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+{"error": "Expected at least 4 wall_reference_points, got 3", "code": "insufficient_wall_points"}
+Exit code: 2

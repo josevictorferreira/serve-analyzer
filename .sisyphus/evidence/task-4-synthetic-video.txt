@@ -1,0 +1,25 @@
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+test_blur_variant_records_expected_uncertainty (test_wall_synthetic.TestSyntheticWallVideo.test_blur_variant_records_expected_uncertainty)
+Blur sigma increases expected uncertainty; video still readable. ... ok
+test_generates_readable_known_impact_video (test_wall_synthetic.TestSyntheticWallVideo.test_generates_readable_known_impact_video)
+Generated video is readable by OpenCV and matches ground truth. ... ok
+test_ground_truth_positions_are_deterministic (test_wall_synthetic.TestSyntheticWallVideo.test_ground_truth_positions_are_deterministic)
+Two calls with identical arguments produce identical ball_positions. ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.737s
+
+OK

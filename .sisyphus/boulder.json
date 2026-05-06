@@ -1,80 +1,108 @@
 {
-  "active_plan": "/home/josevictor/Workspace/serve-analyzer/.sisyphus/plans/web-serve-analysis-app.md",
-  "started_at": "2026-04-21T14:37:13.996Z",
+  "active_plan": "/home/josevictor/Workspace/serve-analyzer/.sisyphus/plans/wall-serve-impact-analysis.md",
+  "started_at": "2026-05-06T00:43:54.370Z",
   "session_ids": [
-    "ses_24f95d8c6fferunh23wv3fXwUq",
-    "ses_24e3b9171ffeuhL0ElKppzd7no",
-    "ses_24e3b8faaffeUJv7bepZ1GnxDT",
-    "ses_24abb051dffeF3EqhRz2cZiyR7",
-    "ses_24abb0215ffe6hxq78K7WBz4nk",
-    "ses_24abb0211ffePkqLxXuG2TsqUE",
-    "ses_249930facffe3RnZ2yOeprEGo9",
-    "ses_249930e64ffeFJtVnQFdYzftOg",
-    "ses_2497fd0adffeqqAgM9KvgLuXdT",
-    "ses_2497fcf28ffecufqGmxfTbAZ7m",
-    "ses_248da870fffej8swuZ6gzurRRU",
-    "ses_245a7fb36ffeuRKa1kB9YeC1e0",
-    "ses_245a7ca18ffeLO35bH2jJH8UtJ",
-    "ses_2458e7c14ffezsPUUDPN4EE5nR",
-    "ses_2458e138dffeyeP64Vv0wWBtBG",
-    "ses_24527a9bcffeOIeVBpCSm5blu5"
+    "ses_2055faf40fferna1knaYcheIf2",
+    "ses_201edef26ffejm8pnZ4IIp3HPF",
+    "ses_201edee0affeVsmQUPUCFZkfhU"
   ],
   "session_origins": {
-    "ses_24f95d8c6fferunh23wv3fXwUq": "direct",
-    "ses_24e3b9171ffeuhL0ElKppzd7no": "appended",
-    "ses_24e3b8faaffeUJv7bepZ1GnxDT": "appended",
-    "ses_24abb051dffeF3EqhRz2cZiyR7": "appended",
-    "ses_24abb0215ffe6hxq78K7WBz4nk": "appended",
-    "ses_24abb0211ffePkqLxXuG2TsqUE": "appended",
-    "ses_249930facffe3RnZ2yOeprEGo9": "appended",
-    "ses_249930e64ffeFJtVnQFdYzftOg": "appended",
-    "ses_2497fd0adffeqqAgM9KvgLuXdT": "appended",
-    "ses_2497fcf28ffecufqGmxfTbAZ7m": "appended",
-    "ses_248da870fffej8swuZ6gzurRRU": "appended",
-    "ses_245a7fb36ffeuRKa1kB9YeC1e0": "appended",
-    "ses_245a7ca18ffeLO35bH2jJH8UtJ": "appended",
-    "ses_2458e7c14ffezsPUUDPN4EE5nR": "appended",
-    "ses_2458e138dffeyeP64Vv0wWBtBG": "appended",
-    "ses_24527a9bcffeOIeVBpCSm5blu5": "appended"
+    "ses_2055faf40fferna1knaYcheIf2": "direct",
+    "ses_201edef26ffejm8pnZ4IIp3HPF": "appended",
+    "ses_201edee0affeVsmQUPUCFZkfhU": "appended"
   },
-  "plan_name": "web-serve-analysis-app",
+  "plan_name": "wall-serve-impact-analysis",
   "agent": "atlas",
   "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Define wall/court coordinate systems and metadata schema",
+      "session_id": "ses_2053f42b4ffeB7W4VPwqTLCUtA",
+      "agent": "Sisyphus-Junior",
+      "category": "business-logic",
+      "updated_at": "2026-05-06T00:52:05.603Z"
+    },
     "todo:2": {
       "task_key": "todo:2",
       "task_label": "2",
-      "task_title": "Create the local FastAPI backend skeleton under `web/backend`",
-      "session_id": "ses_24f458546ffe3zStrx6vAfZTcH",
+      "task_title": "Implement wall homography, calibration residuals, and optional intrinsics handling",
+      "session_id": "ses_20513db89ffeg5d9sT4M2i0DdS",
       "agent": "Sisyphus-Junior",
-      "category": "business-logic",
-      "updated_at": "2026-04-21T15:51:29.096Z"
-    },
-    "todo:4": {
-      "task_key": "todo:4",
-      "task_label": "4",
-      "task_title": "Implement the serve-analysis adapter and single-job runner",
-      "session_id": "ses_24f3942f0ffevzck4jdWtXWeOT",
-      "agent": "Sisyphus-Junior",
-      "category": "business-logic",
-      "updated_at": "2026-04-21T16:07:17.816Z"
+      "category": "deep",
+      "updated_at": "2026-05-06T01:37:52.871Z"
     },
     "todo:5": {
       "task_key": "todo:5",
       "task_label": "5",
-      "task_title": "Generate temporary H.264 serve clips from selected serves",
-      "session_id": "ses_24f2e95c7ffeTpbRtflFa4ysg9",
+      "task_title": "Build manual calibration CLI for setup and per-video overrides",
+      "session_id": "ses_2050fa45affe8V7xc6cMZZxJbB",
       "agent": "Sisyphus-Junior",
       "category": "general",
-      "updated_at": "2026-04-21T16:17:19.372Z"
+      "updated_at": "2026-05-06T01:52:35.358Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Implement pre-wall trajectory and speed estimator with uncertainty",
+      "session_id": "ses_204fbb101ffePG79cbqJtyy2wc",
+      "agent": "Sisyphus-Junior",
+      "category": "business-logic",
+      "updated_at": "2026-05-06T02:16:12.059Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Implement regulation-court landing projection with refusal modes",
+      "session_id": "ses_204ec8e52ffemX1AYX8hLAKQam",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-06T02:25:59.228Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Build wall analysis orchestration CLI",
+      "session_id": "ses_204e235f6ffeLReolq2e5CqfrH",
+      "agent": "Sisyphus-Junior",
+      "category": "general",
+      "updated_at": "2026-05-06T02:40:39.909Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "Generate annotated videos and plots for wall analysis",
+      "session_id": "ses_204d61cf0ffeRu30uy09sfqR4a",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-06T03:04:55.535Z"
+    },
+    "todo:12": {
+      "task_key": "todo:12",
+      "task_label": "12",
+      "task_title": "Add real wall-video smoke command and documented sample workflow",
+      "session_id": "ses_204a3ebf1ffeaLWjkvdZdFiCzU",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-05-06T03:50:59.881Z"
+    },
+    "todo:13": {
+      "task_key": "todo:13",
+      "task_label": "13",
+      "task_title": "Integrated validation and hardening pass",
+      "session_id": "ses_20230c983ffeeAoEi87xiFBN1g",
+      "agent": "Sisyphus-Junior",
+      "category": "",
+      "updated_at": "2026-05-06T15:39:04.146Z"
     },
     "final-wave:f1": {
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "Plan Compliance Audit — oracle",
-      "session_id": "ses_24eeada25ffer8SeT4n3fjJL6h",
-      "agent": "Sisyphus-Junior",
-      "category": "most-capable",
-      "updated_at": "2026-04-21T17:28:49.900Z"
+      "session_id": "ses_2020ceaddffevGExrrPMLKP6s1",
+      "agent": "oracle",
+      "category": "",
+      "updated_at": "2026-05-06T16:05:47.537Z"
     }
   }
 }

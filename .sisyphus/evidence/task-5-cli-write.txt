@@ -1,0 +1,151 @@
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+usage: python -m serve_analyzer.wall_calibration [-h]
+                                                 [--mode {setup,override}]
+                                                 --output OUTPUT
+                                                 [--serve-contact-height SERVE_CONTACT_HEIGHT]
+                                                 [--wall-points WALL_POINTS]
+                                                 [--hook-point HOOK_POINT]
+                                                 [--chair-point CHAIR_POINT]
+                                                 [--serve-contact-distance SERVE_CONTACT_DISTANCE]
+                                                 [--camera-wall-distance CAMERA_WALL_DISTANCE]
+                                                 [--interactive]
+
+Manual wall calibration CLI for setup and per-video overrides. Produces JSON calibration files consumed by the wall-serve pipeline.
+
+options:
+  -h, --help            show this help message and exit
+  --mode {setup,override}
+                        Calibration mode (default: setup)
+  --output OUTPUT       Path to write JSON output
+  --serve-contact-height SERVE_CONTACT_HEIGHT
+                        Ball contact height above court surface (meters)
+  --wall-points WALL_POINTS
+                        Wall reference points as "px_x,px_y,wall_x,wall_y;..."
+                        (≥4 pairs). Lowercase = pixel coords, uppercase = wall
+                        meters.
+  --hook-point HOOK_POINT
+                        Hook pixel position as "x,y" (default height 2.45 m)
+  --chair-point CHAIR_POINT
+                        Chair pixel position as "x,y" (default height 1.0 m).
+                        Repeatable.
+  --serve-contact-distance SERVE_CONTACT_DISTANCE
+                        Distance from wall to serve contact along centerline
+                        (default 6.11 in setup mode)
+  --camera-wall-distance CAMERA_WALL_DISTANCE
+                        Distance from camera to wall (default 1.57 in setup
+                        mode)
+  --interactive         Open an interactive OpenCV window to pick points
+                        (default: off)
+
+Modes:
+  setup    (default) Write a reusable setup JSON with wall reference points,
+           hook/chair references, and court geometry.
+  override Write a per-video override JSON for deltas (e.g. contact height).
+
+Examples:
+  # Non-interactive setup with 4 wall points
+  python -m serve_analyzer.wall_calibration --mode setup \
+      --output setup.json \
+      --serve-contact-height 2.80 \
+      --wall-points "100,500,-4.0,0.0;700,500,4.0,0.0;100,100,-4.0,3.0;700,100,4.0,3.0" \
+      --hook-point "400,150" \
+      --chair-point "200,450"
+
+  # Per-video override
+  python -m serve_analyzer.wall_calibration --mode override \
+      --output override.json \
+      --serve-contact-height 2.95 \
+      --camera-wall-distance 1.80
+
+  # Interactive mode (opens OpenCV window)
+  python -m serve_analyzer.wall_calibration --mode setup --interactive --output setup.json
+        
+Exit code: 0
+warning: Git tree '/home/josevictor/Workspace/serve-analyzer' is dirty
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+Exit code: 0
+{
+  "setup": {
+    "serve_contact_distance_m": 6.11,
+    "camera_wall_distance_m": 1.57,
+    "serve_contact_height_m": 2.8,
+    "wall_reference_points": [
+      {
+        "name": "wall_ref_1",
+        "pixel": [
+          100.0,
+          500.0
+        ],
+        "wall_m": [
+          -4.0,
+          0.0
+        ]
+      },
+      {
+        "name": "wall_ref_2",
+        "pixel": [
+          700.0,
+          500.0
+        ],
+        "wall_m": [
+          4.0,
+          0.0
+        ]
+      },
+      {
+        "name": "wall_ref_3",
+        "pixel": [
+          100.0,
+          100.0
+        ],
+        "wall_m": [
+          -4.0,
+          3.0
+        ]
+      },
+      {
+        "name": "wall_ref_4",
+        "pixel": [
+          700.0,
+          100.0
+        ],
+        "wall_m": [
+          4.0,
+          3.0
+        ]
+      }
+    ],
+    "hook_reference": {
+      "pixel": [
+        400.0,
+        150.0
+      ],
+      "height_m": 2.45
+    }
+  }
+}

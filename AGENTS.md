@@ -1,8 +1,28 @@
 # PROJECT KNOWLEDGE BASE
+
+**Pre-implementation rule:** Before starting any implementation, read `AGENTS.md` (this file) or `CLAUDE.md` for project-specific lessons and gotchas.
+
+## SESSION RETROSPECTIVES
 **Generated:** 2026-05-05
 **Commit:** 4122601
 **Branch:** main
 
+### Run final contract / manual QA before declaring done
+**Lesson:** Even when all unit tests pass, perform a final manual check of the output contract (JSON schema, CSV columns, file paths) before submitting. Automated tests may tolerate gaps that human reviewers will reject.
+**Context:** Two separate final-review waves (F1/F2) rejected the implementation because `wall_x_m/wall_y_m` were null and artifact paths were inconsistent, despite 248 passing tests. The tests were too permissive; the contract was not.
+**Verify:** Before ending a task, open the latest `result.json` and `result.csv`, confirm every documented field is present and correctly typed, and check that every expected file exists at the documented path.
+### Do not subclass cv2.VideoCapture in tests
+**Lesson:** Use `unittest.mock.MagicMock` or composition to fake `cv2.VideoCapture` behavior. Never subclass it, because the native C++ destructor can segfault during Python garbage collection.
+**Context:** A rotated-video test subclassed `cv2.VideoCapture` to swap width/height. The test passed but the process segfaulted on exit, masking other issues and making CI unreliable. Replacing it with a pure-Python `MagicMock` eliminated the crash.
+**Verify:** If a test needs custom `VideoCapture` behavior, grep for `class .*VideoCapture` and replace with `MagicMock` that implements `isOpened`, `get`, `read`, `set`, and `release`.
+### Artifact naming and directory layout must be enforced in tests
+**Lesson:** Standardize artifact paths (e.g. `{video_stem}_annotated.mp4` and `plots/*.png`) and write tests that assert the actual files exist on disk. Do not rely on docstring descriptions alone.
+**Context:** Artifact generation was wired but tests only checked that the CLI exited cleanly. A dedicated end-to-end test now requires JSON, CSV, annotated MP4, and plot PNGs to exist, which caught a path mismatch between the CLI and the artifact module.
+**Verify:** `test_synthetic_end_to_end_outputs_all_artifacts` (or equivalent) must assert `Path.exists()` for every expected artifact.
+### Output contract: wall_x_m / wall_y_m must be populated for calibrated impacts
+**Lesson:** When an impact pixel exists and calibration is valid, always compute and populate `wall_x_m` and `wall_y_m` via the homography. Do not leave them `None` or hardcode nulls.
+**Context:** Final reviewers caught that `assemble_wall_analysis_result` was returning `wall_x_m: null` even when the impact was detected and calibration succeeded. The fix was a single `pixel_to_wall` call that had been omitted.
+**Verify:** After any change to `assemble_wall_analysis_result`, inspect a `result.json` and assert `wall_x_m` and `wall_y_m` are numbers, not `null`.
 ## OVERVIEW
 Tennis serve velocity estimation from lateral video. Python package using OpenCV template matching + numpy/scipy for tracking and velocity computation.
 Web app (Vite React + FastAPI) for interactive analysis.
