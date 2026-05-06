@@ -124,9 +124,11 @@ async def analyze(
     if is_any_job_active():
         raise HTTPException(status_code=409, detail="A job is already active")
     if video.content_type and video.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400, detail=f"Unsupported file type: {video.content_type}"
-        )
+        ext = os.path.splitext(video.filename or "")[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported file type: {video.content_type}"
+            )
     ext = os.path.splitext(video.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -249,9 +251,11 @@ async def create_annotation_session(
 ) -> dict[str, Any]:
     """Create an annotation session by extracting frames from an uploaded video."""
     if video.content_type and video.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400, detail=f"Unsupported file type: {video.content_type}"
-        )
+        ext = os.path.splitext(video.filename or "")[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported file type: {video.content_type}"
+            )
     ext = os.path.splitext(video.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -439,9 +443,11 @@ async def upload_wall_video(video: UploadFile = File(...)) -> dict[str, Any]:
     if is_any_job_active():
         raise HTTPException(status_code=409, detail="A job is already active")
     if video.content_type and video.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400, detail=f"Unsupported file type: {video.content_type}"
-        )
+        ext = os.path.splitext(video.filename or "")[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported file type: {video.content_type}"
+            )
     ext = os.path.splitext(video.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(

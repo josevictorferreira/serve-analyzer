@@ -29,7 +29,12 @@ export async function uploadWallVideo(file: File): Promise<WallVideoUploadRespon
       } else if (xhr.status === 413) {
         reject(new Error('The video file is too large.'));
       } else if (xhr.status === 400) {
-        reject(new Error('Invalid video file or format.'));
+        try {
+          const body = JSON.parse(xhr.responseText);
+          reject(new Error(body.detail || 'Invalid video file or format.'));
+        } catch {
+          reject(new Error('Invalid video file or format.'));
+        }
       } else {
         reject(new Error(`Upload failed (${xhr.status}).`));
       }
