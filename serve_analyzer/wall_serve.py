@@ -21,7 +21,12 @@ from typing import Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from serve_analyzer.wall_calibration import WallCalibration
+from serve_analyzer.wall_calibration import (
+    WallCalibration,
+    compute_wall_homography,
+    pixel_to_wall,
+    WallCalibrationError,
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +63,39 @@ class WallImpactResult:
     candidate_track: List[Tuple[int, float, float]]
     warnings: List[str]
     confidence: Dict
+
+
+@dataclass(frozen=True)
+class PreWallSpeedResult:
+    """Result of pre-wall speed estimation for one serve.
+
+    Attributes
+    ----------
+    speed_m_s
+        Estimated pre-impact speed magnitude in m/s, or ``None`` when
+        refused (e.g. insufficient track).
+    speed_km_h
+        Estimated speed in km/h, or ``None`` when refused.
+    speed_mph
+        Estimated speed in mph, or ``None`` when refused.
+    uncertainty_m_s
+        Combined uncertainty in m/s (±1 frame, homography residuals,
+        degraded intrinsics).  ``0.0`` when refused.
+    samples_used
+        Number of clean pre-impact positions used in the estimate.
+    warnings
+        List of warning-code strings.
+    metadata
+        Extra data for downstream consumers (e.g. velocity vector).
+    """
+
+    speed_m_s: Optional[float]
+    speed_km_h: Optional[float]
+    speed_mph: Optional[float]
+    uncertainty_m_s: float
+    samples_used: int
+    warnings: List[str]
+    metadata: Dict
 
 
 def _find_ball_in_frame(
@@ -117,8 +155,8 @@ def detect_wall_impact(
          past the wall plane, or the frame with the largest brightness
          change (discontinuity).
       5. If *manual_correction* is provided, override the final
-         ``impact_frame``/``impact_pixel`` while preserving the
-         autonomous candidate.
+        ``impact_frame``/``impact_pixel`` while preserving the
+        autonomous candidate.
 
     Parameters
     ----------
@@ -227,7 +265,7 @@ def detect_wall_impact(
     autonomous_pixel: Optional[Tuple[float, float]] = None
 
     best_idx = -1
-    best_dist = float('inf')
+    best_dist = float("inf")
     for i, (fidx, x_px, y_px) in enumerate(gated_track):
         dist = abs(x_px - wall_x_px)
         if dist < best_dist:
@@ -285,4 +323,204 @@ def detect_wall_impact(
         candidate_track=gated_track,
         warnings=warnings,
         confidence=confidence,
+    )
+
+
+def estimate_pre_wall_speed(
+    impact_result: WallImpactResult,
+    calibration: WallCalibration,
+    *,
+    fps: float,
+    min_samples: int = 4,
+) -> PreWallSpeedResult:
+    """Estimate pre-impact speed magnitude from the final clean track segment.
+
+    Trims *impact_result.candidate_track* to frames strictly before
+    *impact_result.impact_frame*, converts pixel positions to wall-plane
+    meters via ``pixel_to_wall``, and computes a finite-difference velocity
+    over the last *min_samples* clean positions.  The speed is anchored on
+    the last pre-impact point (the point closest to impact).
+
+    Parameters
+    ----------
+    impact_result
+        A :class:`WallImpactResult` with populated ``impact_frame`` and
+        ``candidate_track``.
+    calibration
+        A validated :class:`WallCalibration` with at least 4 wall reference
+        points.
+    fps
+        Video frame rate (frames per second).
+    min_samples
+        Minimum number of clean pre-impact positions required to report a
+        speed (default 4).
+
+    Returns
+    -------
+    PreWallSpeedResult
+        Speed fields are ``None`` when refused.  ``uncertainty_m_s``
+        combines ±1 frame impact ambiguity, homography reprojection RMS,
+        and a degraded-intrinsics multiplicative factor.
+    """
+    warnings: List[str] = []
+    metadata: Dict = {}
+
+    # --- 1. Trim track to strictly pre-impact frames ---
+    impact_frame = impact_result.impact_frame
+    if impact_frame is None:
+        warnings.append("insufficient_track")
+        return PreWallSpeedResult(
+            speed_m_s=None,
+            speed_km_h=None,
+            speed_mph=None,
+            uncertainty_m_s=0.0,
+            samples_used=0,
+            warnings=warnings,
+            metadata=metadata,
+        )
+
+    pre_track = [
+        (f, x, y) for f, x, y in impact_result.candidate_track if f < impact_frame
+    ]
+
+    if len(pre_track) < min_samples:
+        warnings.append("insufficient_track")
+        return PreWallSpeedResult(
+            speed_m_s=None,
+            speed_km_h=None,
+            speed_mph=None,
+            uncertainty_m_s=0.0,
+            samples_used=len(pre_track),
+            warnings=warnings,
+            metadata=metadata,
+        )
+
+    # --- 2. Compute wall-plane homography ---
+    image_points = np.array(
+        [p.pixel for p in calibration.wall_reference_points], dtype=np.float64
+    )
+    world_points = np.array(
+        [p.wall_m for p in calibration.wall_reference_points], dtype=np.float64
+    )
+
+    try:
+        H, residuals = compute_wall_homography(
+            image_points, world_points, intrinsics=calibration.intrinsics
+        )
+    except WallCalibrationError:
+        warnings.append("insufficient_track")
+        return PreWallSpeedResult(
+            speed_m_s=None,
+            speed_km_h=None,
+            speed_mph=None,
+            uncertainty_m_s=0.0,
+            samples_used=len(pre_track),
+            warnings=warnings,
+            metadata=metadata,
+        )
+
+    H_inv = np.linalg.inv(H)
+
+    # --- 3. Convert pre-impact pixels to wall meters ---
+    pixels = np.array([[x, y] for _, x, y in pre_track], dtype=np.float64)
+    wall_m = pixel_to_wall(H_inv, pixels)
+
+    # --- 4. Finite-difference velocity (central differences, fallback forward) ---
+    # Use the final *min_samples* points for the clean segment.
+    segment = wall_m[-min_samples:]
+    frames = np.array([f for f, _, _ in pre_track[-min_samples:]], dtype=np.float64)
+
+    if len(segment) < 2:
+        warnings.append("insufficient_track")
+        return PreWallSpeedResult(
+            speed_m_s=None,
+            speed_km_h=None,
+            speed_mph=None,
+            uncertainty_m_s=0.0,
+            samples_used=len(pre_track),
+            warnings=warnings,
+            metadata=metadata,
+        )
+
+    dt = 1.0 / fps
+
+    # Central differences for interior points, forward/backward for edges.
+    velocities = np.zeros_like(segment)
+    for i in range(len(segment)):
+        if i == 0:
+            velocities[i] = (segment[i + 1] - segment[i]) / dt
+        elif i == len(segment) - 1:
+            velocities[i] = (segment[i] - segment[i - 1]) / dt
+        else:
+            velocities[i] = (segment[i + 1] - segment[i - 1]) / (2.0 * dt)
+
+    # Speed magnitude at the last pre-impact point (anchor).
+    vx, vy = velocities[-1]
+    speed_m_s = float(np.sqrt(vx**2 + vy**2))
+
+    # --- 5. Unit conversions ---
+    speed_km_h = speed_m_s * 3.6
+    speed_mph = speed_m_s * 2.2369362920544
+
+    # --- 6. Uncertainty budget ---
+    # a) ±1 frame impact ambiguity: recompute speed shifting anchor by ±1 frame.
+    speeds_shifted: List[float] = []
+    for shift in (-1, 1):
+        shifted_idx = len(wall_m) + shift
+        if 1 <= shifted_idx <= len(wall_m):
+            shifted_segment = wall_m[max(0, shifted_idx - min_samples) : shifted_idx]
+            if len(shifted_segment) >= 2:
+                # Recompute velocity at the new anchor.
+                if len(shifted_segment) >= 3:
+                    v_shifted = (shifted_segment[-1] - shifted_segment[-3]) / (2.0 * dt)
+                else:
+                    v_shifted = (shifted_segment[-1] - shifted_segment[-2]) / dt
+                speeds_shifted.append(
+                    float(np.sqrt(v_shifted[0] ** 2 + v_shifted[1] ** 2))
+                )
+
+    if len(speeds_shifted) >= 2:
+        ambiguity = (max(speeds_shifted) - min(speeds_shifted)) / 2.0
+    elif speeds_shifted:
+        ambiguity = abs(speeds_shifted[0] - speed_m_s)
+    else:
+        ambiguity = 0.0
+
+    # b) Homography residual scaling.
+    rms_px = residuals.get("reprojection_rms_px", 0.0)
+    # Convert pixel RMS to speed uncertainty: RMS_px * scale_factor / dt.
+    # Approximate scale factor from the homography (meters per pixel near the wall).
+    # Use the mean of diagonal elements of the linear part as a rough scale.
+    scale_factor = float(np.mean([H[0, 0], H[1, 1]]))
+    if scale_factor <= 0:
+        scale_factor = 1.0
+    residual_speed_uncertainty = (rms_px * scale_factor) / dt
+
+    # c) Degraded intrinsics factor.
+    degraded_factor = 1.0
+    if (
+        calibration.intrinsics is not None
+        and calibration.intrinsics.source == "approx_exif"
+    ):
+        degraded_factor = 1.5
+        warnings.append("degraded_intrinsics")
+
+    # Combine in quadrature, then apply degraded factor multiplicatively.
+    uncertainty_m_s = (
+        np.sqrt(ambiguity**2 + residual_speed_uncertainty**2) * degraded_factor
+    )
+
+    # --- 7. Metadata for downstream consumers ---
+    metadata["velocity_vector_wall_m_s"] = (float(vx), float(vy))
+    metadata["homography_residuals"] = residuals
+    metadata["scale_factor_approx"] = scale_factor
+
+    return PreWallSpeedResult(
+        speed_m_s=speed_m_s,
+        speed_km_h=speed_km_h,
+        speed_mph=speed_mph,
+        uncertainty_m_s=float(uncertainty_m_s),
+        samples_used=len(pre_track),
+        warnings=warnings,
+        metadata=metadata,
     )
