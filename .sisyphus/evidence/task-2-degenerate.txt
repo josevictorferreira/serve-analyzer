@@ -1,0 +1,17 @@
+Task 2 degenerate calibration evidence — 2026-05-05
+
+Command:
+  nix develop --command python -m unittest discover -s tests -p "test_wall_calibration.py" -k TestWallHomography.test_collinear_points_rejected -v
+
+Result:
+  test_collinear_points_rejected (test_wall_calibration.TestWallHomography.test_collinear_points_rejected)
+  Four collinear references raise structured calibration failure. ... ok
+
+  ----------------------------------------------------------------------
+  Ran 1 test in 0.000s
+
+  OK
+
+Verified behavior:
+  compute_wall_homography rejects four collinear image/world references with
+  WallCalibrationError containing "calibration_degenerate".

@@ -80,3 +80,12 @@
 - 10 new tests in `TestWallOutputContracts` + 3 supplementary test classes — all passing
 - 26 total wall tests (including 13 from wall_calibration, 3 from wall_synthetic) — zero regressions
 - Run: `python -m unittest discover -s tests -p 'test_wall_*.py' -v`
+
+## 2026-05-05 — Task 2: Homography calibration primitives
+
+- `serve_analyzer/wall_calibration.py` now exposes `compute_wall_homography`, `compute_reprojection_rms`, `pixel_to_wall`, `wall_to_pixel`, and `undistort_points`.
+- Homography maps wall-plane meters → pixels; callers invert it with `np.linalg.inv(H)` for `pixel_to_wall`.
+- `compute_wall_homography(..., intrinsics=Intrinsics(source="approx_exif", ...))` sets `residuals["degraded_intrinsics"] = True`.
+- Degenerate image or world point sets raise `WallCalibrationError("calibration_degenerate", details)` before OpenCV fitting.
+- Test invocation that works with this repo layout: `nix develop --command python -m unittest discover -s tests -p "test_wall_calibration.py" -v` (16 tests after Task 2).
+- All wall tests passed with `nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v` (29 tests).

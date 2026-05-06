@@ -1,0 +1,21 @@
+Task 2 homography evidence — 2026-05-05
+
+Command:
+  nix develop --command python -m unittest discover -s tests -p "test_wall_calibration.py" -k TestWallHomography.test_round_trip_synthetic_points -v
+
+Result:
+  test_round_trip_synthetic_points (test_wall_calibration.TestWallHomography.test_round_trip_synthetic_points)
+  Synthetic wall points round-trip pixel→wall→pixel within 1 px RMS. ... ok
+
+  ----------------------------------------------------------------------
+  Ran 1 test in 0.001s
+
+  OK
+
+Full wall calibration suite:
+  nix develop --command python -m unittest discover -s tests -p "test_wall_calibration.py" -v
+  Ran 16 tests in 0.002s — OK
+
+All wall test files:
+  nix develop --command python -m unittest discover -s tests -p 'test_wall_*.py' -v
+  Ran 29 tests in 0.838s — OK
