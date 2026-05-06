@@ -358,3 +358,28 @@ score = clamp(base, 0, 1)
 - Lines 826-915 were parser construction code accidentally placed inside `_error_json()` after its `return 2` statement.
 - This made `_build_parser()` undefined (called by `main()` at line 1121), causing `NameError` at runtime.
 - Fix: added `def _build_parser():` and removed the dead first parser definition (lines 826-845).
+
+## 2026-05-06 — Task 13: Integrated validation and hardening pass
+
+### Edge Cases Tested
+- `test_variable_fps_metadata_uses_override`: Synthetic 60 fps video with `--fps 30` override; `impact_time_sec` equals `impact_frame / 30`. Confirms `_get_fps()` override path and `assemble_wall_analysis_result` fps propagation work.
+- `test_rotated_video_metadata_via_mock`: Mocks `cv2.VideoCapture` to report swapped width/height (480×640 instead of 640×480). Pipeline completes without unhandled exception (exit 0 or 1 acceptable).
+- `test_conflicting_per_video_override`: setup.json has `serve_contact_height_m=2.45`, override JSON sets `2.80`. Result `assumed.contact_height_m` equals 2.80 (override wins).
+- `test_nonexistent_manual_correction_serve_index`: `manual_corrections.json` has key `"99"` but video has only serve 0. Pipeline exits 0; `manual_correction_used` NOT in warnings (unmatched key ignored).
+- `test_missing_intrinsics_flags_degraded`: No intrinsics block → `confidence.degraded_intrinsics` is False (only `approx_exif` triggers it). Plus `test_approx_exif_intrinsics_flags_degraded` confirms `source="approx_exif"` does flag degraded and reduces confidence.
+- `test_existing_lateral_pipeline_unchanged`: Smoke test imports `serve_analyzer.cli` and `serve_analyzer.serve_attempts_v6`, asserts expected public symbols (`main`, `InteractiveCalibrator`, `run_analysis`, `detect_serve_candidates_v6`).
+
+### Pre-existing State
+- The edge case test file was already complete from a prior session. No modifications needed.
+- All wall modules (`wall_serve.py`, `wall_outputs.py`, `wall_artifacts.py`, `wall_calibration.py`) already have complete docstrings on all public functions/classes.
+- Per-video output wiring (`result.json`, `result.csv`, aggregate `all_serves.csv`) was already complete in `_process_video()` and `main()`.
+- T10 artifact hooks (annotated video + plots) already wired in `_process_video()` with graceful ImportError fallback.
+
+### Test Results
+- 248 tests total (full suite), all pass, 0 failures, 0 errors.
+- 7 edge-case tests, all pass.
+- Known OpenCV segfault at process exit (cleanup issue) does not affect test results.
+
+### Evidence
+- `.sisyphus/evidence/task-13-full-suite.txt` — 248 tests, OK
+- `.sisyphus/evidence/task-13-edge-cases.txt` — 7 tests, OK

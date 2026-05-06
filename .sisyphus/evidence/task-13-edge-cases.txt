@@ -1,0 +1,32 @@
+
+Serve Analyzer dev shell
+  make dev               # start browser annotation with fine-tuned model if available
+  make categorize        # same as make dev
+  make help              # show available project commands
+
+The default pre-label model is:
+  annotation_exports/4f6e0258d09c/training-runs/yolo26n-finetune-1280/weights/best.pt
+
+Override pre-label model with:
+  SERVE_ANALYZER_RJTPP_MODEL_PATH=/path/to/best.pt make categorize
+  SERVE_ANALYZER_ALLOW_REMOTE_MODEL_DOWNLOAD=1 make categorize
+
+test_conflicting_per_video_override (test_wall_edge_cases.TestConflictingOverride.test_conflicting_per_video_override)
+setup.json serve_contact_height_m=2.45 vs override 2.80; override wins. ... ok
+test_existing_lateral_pipeline_unchanged (test_wall_edge_cases.TestLateralPipelineUnchanged.test_existing_lateral_pipeline_unchanged)
+Import cli and serve_attempts_v6; check public symbols match snapshot. ... ok
+test_approx_exif_intrinsics_flags_degraded (test_wall_edge_cases.TestMissingIntrinsics.test_approx_exif_intrinsics_flags_degraded)
+intrinsics.source='approx_exif' triggers degraded_intrinsics warning and reduced confidence. ... ok
+test_missing_intrinsics_flags_degraded (test_wall_edge_cases.TestMissingIntrinsics.test_missing_intrinsics_flags_degraded)
+No intrinsics block in metadata; verify pipeline handles it correctly. ... ok
+test_nonexistent_manual_correction_serve_index (test_wall_edge_cases.TestNonexistentManualCorrection.test_nonexistent_manual_correction_serve_index)
+Pass manual_corrections with key '99'; pipeline does not crash. ... ok
+test_rotated_video_metadata_via_mock (test_wall_edge_cases.TestRotatedVideoMetadata.test_rotated_video_metadata_via_mock)
+Patch VideoCapture to report swapped dims; pipeline must not crash. ... ok
+test_variable_fps_metadata_uses_override (test_wall_edge_cases.TestVariableFpsMetadata.test_variable_fps_metadata_uses_override)
+Synthetic 60 fps video with --fps 30 override; impact_time_sec uses 30 fps timeline. ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.224s
+
+OK

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -28,7 +28,7 @@ from serve_analyzer.wall_calibration import (
     WallCalibrationError,
 )
 from serve_analyzer.wall_outputs import (
-    WallAnalysisResult,
+    assemble_wall_analysis_result,
     to_json,
     serve_to_csv_row,
     write_csv,
@@ -990,78 +990,43 @@ def _process_video(
     # --- Court projection ---
     projection_result = project_to_court(speed_result, calibration)
 
-    # --- Assemble WallAnalysisResult ---
-    result = WallAnalysisResult()
-    result.measured = {
-        "impact_time_sec": (
-            impact_result.impact_frame / fps if impact_result.impact_frame is not None else None
-        ),
-        "impact_frame": impact_result.impact_frame,
-        "wall_x_m": None,
-        "wall_y_m": None,
-    }
-    result.inferred = {
-        "speed_m_s": speed_result.speed_m_s,
-        "speed_km_h": speed_result.speed_km_h,
-        "speed_mph": speed_result.speed_mph,
-        "landing_x_m": projection_result.landing_x_m,
-        "landing_z_m": projection_result.landing_z_m,
-        "in_service_box": projection_result.in_service_box,
-        "service_box_side": projection_result.service_box_side,
-    }
-    result.assumed = projection_result.assumptions
-    result.confidence = {
-        "speed_uncertainty_m_s": speed_result.uncertainty_m_s,
-        "samples_used": speed_result.samples_used,
-        "impact_confidence": impact_result.confidence,
-    }
-    result.warnings = list(
-        set(impact_result.warnings + speed_result.warnings + projection_result.warnings)
-    )
+    # --- Store fps in speed metadata for downstream impact_time_sec ---
+    speed_result.metadata["fps"] = fps
 
-    # --- T10 artifact hooks (optional) ---
-    artifacts: dict = {"annotated_video": None, "plots": {}}
-    if not no_video or not no_plots:
+    # --- T10 artifact hooks ---
+    artifact_paths: dict[str, Any] = {"annotated_video": None, "plots": {}}
+    try:
+        from serve_analyzer.wall_artifacts import render_annotated_video, render_plots
+    except ImportError:
+        render_annotated_video = None  # type: ignore[assignment]
+        render_plots = None  # type: ignore[assignment]
+
+    if not no_video and render_annotated_video is not None:
+        annotated_path = output_dir / "annotated.mp4"
         try:
-            from serve_analyzer.wall_artifacts import (
-                render_annotated_video,
-                render_plots,
+            render_annotated_video(
+                video_path, impact_result, speed_result,
+                projection_result, calibration, str(annotated_path),
             )
-        except ImportError:
-            if not no_video:
-                sys.stderr.write(
-                    "Warning: wall_artifacts module not found; skipping annotated video generation.\n"
-                )
-            if not no_plots:
-                sys.stderr.write(
-                    "Warning: wall_artifacts module not found; skipping plot generation.\n"
-                )
-        else:
-            if not no_video:
-                annotated_path = output_dir / f"{video_stem}_annotated.mp4"
-                try:
-                    render_annotated_video(
-                        video_path,
-                        result,
-                        impact_result,
-                        calibration,
-                        str(annotated_path),
-                    )
-                    artifacts["annotated_video"] = str(annotated_path)
-                except Exception as exc:
-                    sys.stderr.write(f"Warning: annotated video generation failed: {exc}\n")
-            if not no_plots:
-                plots_dir = output_dir / "plots"
-                plots_dir.mkdir(parents=True, exist_ok=True)
-                try:
-                    plot_paths = render_plots(
-                        video_path, result, impact_result, calibration, str(plots_dir)
-                    )
-                    artifacts["plots"] = plot_paths
-                except Exception as exc:
-                    sys.stderr.write(f"Warning: plot generation failed: {exc}\n")
+            artifact_paths["annotated_video"] = str(annotated_path)
+        except Exception as exc:
+            sys.stderr.write(f"Warning: annotated video generation failed: {exc}\n")
 
-    result.artifacts = artifacts
+    if not no_plots and render_plots is not None:
+        try:
+            plot_paths = render_plots(
+                impact_result, speed_result, projection_result,
+                calibration, str(output_dir), video_stem=video_stem,
+            )
+            artifact_paths["plots"] = {k: str(v) for k, v in plot_paths.items()}
+        except Exception as exc:
+            sys.stderr.write(f"Warning: plot generation failed: {exc}\n")
+
+    # --- Assemble WallAnalysisResult ---
+    result = assemble_wall_analysis_result(
+        video_path, calibration, impact_result, speed_result,
+        projection_result, artifact_paths=artifact_paths,
+    )
 
     # --- Write JSON ---
     result_path = output_dir / "result.json"
@@ -1070,7 +1035,7 @@ def _process_video(
     # --- Write CSV ---
     serve_row = {
         "video": video_stem,
-        "serve_index": 0,
+        "serve_index": result.measured.get("serve_index", 0),
         "impact_time_sec": result.measured.get("impact_time_sec"),
         "impact_frame": result.measured.get("impact_frame"),
         "wall_x_m": result.measured.get("wall_x_m"),
@@ -1081,8 +1046,8 @@ def _process_video(
         "landing_x_m": result.inferred.get("landing_x_m"),
         "landing_z_m": result.inferred.get("landing_z_m"),
         "in_service_box": result.inferred.get("in_service_box"),
-        "confidence_score": result.confidence.get("speed_uncertainty_m_s"),
-        "warning_codes": result.warnings,
+        "confidence_score": result.confidence.get("aggregate_score"),
+        "warnings": result.warnings,
     }
     csv_path = output_dir / "result.csv"
     write_csv(csv_path, [serve_to_csv_row(serve_row)])

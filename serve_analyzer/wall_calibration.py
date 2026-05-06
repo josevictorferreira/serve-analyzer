@@ -115,6 +115,7 @@ class WallReferencePoint:
     wall_m: Tuple[float, float]
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a plain dict suitable for JSON."""
         return {
             "name": self.name,
             "pixel": list(self.pixel),
@@ -123,6 +124,7 @@ class WallReferencePoint:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "WallReferencePoint":
+        """Deserialize from a plain dict."""
         return cls(
             name=str(d["name"]),
             pixel=tuple(float(v) for v in d["pixel"]),
@@ -138,6 +140,7 @@ class HookReference:
     height_m: float
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a plain dict suitable for JSON."""
         return {
             "pixel": list(self.pixel),
             "height_m": float(self.height_m),
@@ -145,6 +148,7 @@ class HookReference:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "HookReference":
+        """Deserialize from a plain dict."""
         return cls(
             pixel=tuple(float(v) for v in d["pixel"]),
             height_m=float(d["height_m"]),
@@ -159,6 +163,7 @@ class ChairReference:
     height_m: float
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a plain dict suitable for JSON."""
         return {
             "pixel": list(self.pixel),
             "height_m": float(self.height_m),
@@ -166,6 +171,7 @@ class ChairReference:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ChairReference":
+        """Deserialize from a plain dict."""
         return cls(
             pixel=tuple(float(v) for v in d["pixel"]),
             height_m=float(d["height_m"]),
@@ -181,6 +187,7 @@ class Intrinsics:
     dist_coeffs: Optional[List[float]] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a plain dict suitable for JSON."""
         result: Dict[str, Any] = {"source": self.source}
         if self.camera_matrix is not None:
             result["camera_matrix"] = self.camera_matrix
@@ -190,6 +197,7 @@ class Intrinsics:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Intrinsics":
+        """Deserialize from a plain dict."""
         return cls(
             source=str(d["source"]),
             camera_matrix=d.get("camera_matrix"),
