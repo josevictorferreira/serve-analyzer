@@ -157,7 +157,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): add wall video session endpoints` | Files: `web/backend/*`, `tests/test_wall_web_session.py`
 
-- [ ] 2. Wall calibration persistence APIs
+- [x] 2. Wall calibration persistence APIs
 
   **What to do**: Add `POST /api/wall/calibration`, `GET /api/wall/calibration`, and `DELETE /api/wall/calibration`. Payload must include `video_id`, `calibration_frame`, `calibration_time_sec`, at least 4 points each with image pixel `{x,y}` and wall meters `{x_m,y_m}`, plus required metadata/contact assumptions. Persist as process-session JSON in a wall-specific backend temp/state location. Validate via `WallCalibration.from_dict()` and return RMS/point count where available.
   **Must NOT do**: Do not require calibration to be tied to a real file path exposed to the browser. Do not delete calibration during job reset.

@@ -50,7 +50,17 @@ from .wall_schemas import (
     WallJobResetResponse,
     WallVideoMetadataResponse,
     WallVideoUploadResponse,
+    WallCalibrationRequest,
+    WallCalibrationResponse,
+    WallCalibrationGetResponse,
+    WallCalibrationDeleteResponse,
 )
+from .services.wall_calibration_service import (
+    clear_calibration,
+    get_calibration,
+    validate_and_store,
+)
+from serve_analyzer.wall_calibration import WallCalibrationError
 from .services.wall_session_service import (
     clear_session,
     get_session,
@@ -504,7 +514,12 @@ async def get_wall_video_metadata(video_id: str) -> dict[str, Any]:
 
 @app.post("/api/wall/job/reset", response_model=WallJobResetResponse)
 async def reset_wall_job() -> dict[str, str]:
-    """Reset wall job state, delete staged video, and clean wall artifacts."""
+    """Reset wall job state, delete staged video, and clean wall artifacts.
+
+    NOTE: This intentionally does NOT clear calibration state. Calibration
+    is persisted independently and survives a job reset so the user can
+    re-analyze the same video without recalibrating.
+    """
     clear_session()
     wall_temp = get_wall_temp_dir()
     if os.path.isdir(wall_temp):
@@ -520,3 +535,39 @@ async def reset_wall_job() -> dict[str, str]:
 
     reset_wall_state()
     return {"status": "reset", "message": "Wall job reset successfully"}
+
+
+# Wall calibration routes (Task 2 — calibration persistence)
+# ============================================================
+
+
+@app.post("/api/wall/calibration", response_model=WallCalibrationResponse)
+async def create_wall_calibration(payload: WallCalibrationRequest) -> dict[str, Any]:
+    """Persist wall calibration after validating via WallCalibration.from_dict()."""
+    session = get_session()
+    if session is None or session.video_id != payload.video_id:
+        raise HTTPException(
+            status_code=400,
+            detail="No staged video matches the provided video_id",
+        )
+    try:
+        result = validate_and_store(payload.model_dump())
+    except WallCalibrationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result
+
+
+@app.get("/api/wall/calibration", response_model=WallCalibrationGetResponse)
+async def get_wall_calibration() -> dict[str, Any]:
+    """Return the persisted wall calibration, or 404 if none exists."""
+    calibration = get_calibration()
+    if calibration is None:
+        raise HTTPException(status_code=404, detail="No calibration found")
+    return calibration
+
+
+@app.delete("/api/wall/calibration", response_model=WallCalibrationDeleteResponse)
+async def delete_wall_calibration() -> dict[str, str]:
+    """Clear the persisted wall calibration state."""
+    clear_calibration()
+    return {"status": "deleted", "message": "Wall calibration cleared"}
