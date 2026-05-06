@@ -45,6 +45,23 @@ class WallJobStatus(BaseModel):
     error: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
 
+
+class WallReviewClipArtifact(BaseModel):
+    """Browser URL for the impact-centered wall review clip."""
+
+    url: str
+
+
+class WallReviewMetadata(BaseModel):
+    """Timing metadata for an impact-centered wall review clip."""
+
+    impact_time_sec: float
+    impact_frame: Optional[int] = None
+    start_time_sec: float
+    end_time_sec: float
+    duration_sec: float
+
+
 class WallCalibrationPoint(BaseModel):
     """One wall reference point with pixel and wall-frame coordinates."""
 

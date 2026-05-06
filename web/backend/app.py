@@ -618,6 +618,7 @@ async def analyze_wall() -> dict[str, str]:
                 session.video_path,
                 calibration,
                 video_id,
+                session.metadata.duration_sec,
                 on_progress=_on_progress,
             )
             set_wall_state({"status": WallJobPhase.DONE, "result": result})

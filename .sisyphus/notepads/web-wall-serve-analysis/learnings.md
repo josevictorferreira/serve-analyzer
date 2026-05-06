@@ -57,3 +57,22 @@
 - Key gotcha: Must import `Path` from `pathlib` in `app.py` for artifact route; missing import caused `NameError` in background thread.
 - Key gotcha: `_process_video()` writes `result.json` with absolute paths in `artifacts`. The adapter must normalize these to relative browser URLs before storing in wall state.
 
+
+## 2026-05-06 Task 5 Frontend Wall Mode and Staged Upload Step
+- Created `web/src/lib/wall-types.ts` with TypeScript interfaces matching all Pydantic schemas from `wall_schemas.py`.
+- Created `web/src/lib/wall-api.ts` with API client functions: `uploadWallVideo`, `getWallVideoMetadata`, `saveWallCalibration`, `getWallCalibration`, `deleteWallCalibration`, `startWallAnalysis`, `getWallJob`, `resetWallJob`.
+- `uploadWallVideo` uses XMLHttpRequest for progress tracking, matching the existing `analyzeVideoWithProgress` pattern in `api.ts`.
+- Created `web/src/components/wall-upload-step.tsx` with `WallUploadStep` (dropzone with file validation, upload state, error state) and `WallMetadataDisplay` (metadata cards for filename, duration, fps, resolution, frames).
+- Created `web/src/components/wall-workflow.tsx` with `WallWorkflow` stepper (Upload → Calibrate → Configure → Analyze → Results). Only Upload step is functional; others show placeholder cards.
+- Modified `web/src/App.tsx`: added `'wall'` to mode union type, added "Wall Analysis" button, added `WallWorkflow` rendering when `mode === 'wall'`.
+- Wall mode state is entirely separate from existing analysis/annotation modes — no shared state.
+- Tests added: `App.test.tsx` (wall mode switching, upload dropzone rendering, mode preservation) and `wall-upload-step.test.tsx` (render, successful upload with metadata, error message, uploading state).
+- Build: `npm run build` exits 0. Tests: `npm test -- --run` — 16/16 pass (3 test files).
+
+## 2026-05-06 Task 4 Impact-Centered Wall Review Clips
+- Created `web/backend/services/wall_review_clip_service.py` to generate `{video_stem}_impact_review.mp4` with ffmpeg using the required `max(impact_time_sec - 1.5, 0.0)` to `min(impact_time_sec + 1.0, video_duration_sec)` window and silent H.264 output.
+- Integrated review clip generation in `run_wall_analysis()` as best-effort only: failures log a warning and the wall analysis result still succeeds.
+- Result contract now adds nested `artifacts.review_clip.url` plus top-level `review` metadata with `impact_time_sec`, `impact_frame`, `start_time_sec`, `end_time_sec`, and `duration_sec` when `measured.impact_time_sec` is present.
+- If `impact_time_sec` is `None`, `review_clip` and `review` are omitted silently.
+- Test gotcha: current synthetic wall web analysis fixture can produce `impact_time_sec: null`; the review-clip integration test patches `_process_video()` to write a deterministic impact result while still using the staged synthetic video for ffmpeg clip extraction.
+- Verification: targeted `test_wall_web_review_clip.py` passed; full `python -m unittest discover -s tests -v` passed with 273 tests (3 skipped). Python LSP diagnostics could not run because `pylsp` is not installed.
