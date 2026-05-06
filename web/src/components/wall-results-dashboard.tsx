@@ -311,19 +311,19 @@ function ReviewClipCard({
       <CardContent className="space-y-4">
         <video controls className="w-full max-w-xl rounded-lg" src={clipUrl} />
         <dl className="flex gap-6 text-xs text-muted-foreground">
-          {clip.start_time != null && (
+          {clip.start_time_sec != null && (
             <div>
-              <span className="font-medium">Start:</span> {fmt(clip.start_time)}s
+              <span className="font-medium">Start:</span> {fmt(clip.start_time_sec)}s
             </div>
           )}
-          {clip.impact_time != null && (
+          {clip.impact_time_sec != null && (
             <div>
-              <span className="font-medium">Impact:</span> {fmt(clip.impact_time)}s
+              <span className="font-medium">Impact:</span> {fmt(clip.impact_time_sec)}s
             </div>
           )}
-          {clip.end_time != null && (
+          {clip.end_time_sec != null && (
             <div>
-              <span className="font-medium">End:</span> {fmt(clip.end_time)}s
+              <span className="font-medium">End:</span> {fmt(clip.end_time_sec)}s
             </div>
           )}
         </dl>
@@ -400,7 +400,8 @@ function ConfidenceWarningsCard({
   confidence?: number | Record<string, unknown>
   warnings?: Array<{ code?: string; message: string }>
 }) {
-  const scoreValue = typeof confidence === "number" ? confidence : ((confidence as Record<string, unknown>)?.score) as number | undefined
+  const conf = typeof confidence === "number" ? undefined : (confidence as Record<string, unknown>)
+  const scoreValue = typeof confidence === "number" ? confidence : (conf?.aggregate_score ?? conf?.score) as number | undefined
   const scoreNum = scoreValue ?? null
   return (
     <Card>

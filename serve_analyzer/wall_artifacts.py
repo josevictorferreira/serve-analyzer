@@ -274,6 +274,32 @@ def render_annotated_video(
 
     cap.release()
     out.release()
+
+    # Re-encode to H.264 so Chrome/other browsers can play the MP4.
+    # cv2.VideoWriter with 'mp4v' produces MPEG-4 Part 2 which browsers
+    # cannot decode. Fall back to the raw file if ffmpeg is unavailable.
+    try:
+        import os
+        import subprocess
+
+        temp_path = str(output_path) + ".raw.mp4"
+        os.replace(str(output_path), temp_path)
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", temp_path,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-movflags", "+faststart",
+                str(output_path),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        os.remove(temp_path)
+    except Exception:
+        # ffmpeg not available or re-encode failed; keep the raw mp4v file
+        if os.path.exists(temp_path) and not os.path.exists(str(output_path)):
+            os.replace(temp_path, str(output_path))
+
     return output_path
 
 

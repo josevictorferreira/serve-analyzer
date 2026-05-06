@@ -40,9 +40,9 @@ function createMockResult() {
       annotated_video: { url: "/api/wall/artifacts/annotated.mp4" },
       review_clip: {
         url: "/api/wall/artifacts/review.mp4",
-        start_time: 2.0,
-        impact_time: 3.45,
-        end_time: 5.0,
+        start_time_sec: 2.0,
+        impact_time_sec: 3.45,
+        end_time_sec: 5.0,
       },
       plots: {
         speed: { url: "/api/wall/artifacts/speed.png" },
