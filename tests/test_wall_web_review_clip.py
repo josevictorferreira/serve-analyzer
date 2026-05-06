@@ -157,14 +157,13 @@ class TestWallWebReviewClip(unittest.TestCase):
             f"review_clip filename should end with _impact_review.mp4: {review_clip_url}",
         )
 
-        # Review metadata
-        review = result.get("review")
-        self.assertIsNotNone(review, "Expected review metadata section")
-        self.assertIn("impact_time_sec", review)
-        self.assertIn("start_time_sec", review)
-        self.assertIn("end_time_sec", review)
-        self.assertIn("duration_sec", review)
-        self.assertIn("impact_frame", review)
+        # Review metadata is now under artifacts.review_clip
+        review_clip_meta = artifacts["review_clip"]
+        self.assertIn("impact_time_sec", review_clip_meta)
+        self.assertIn("start_time_sec", review_clip_meta)
+        self.assertIn("end_time_sec", review_clip_meta)
+        self.assertIn("duration_sec", review_clip_meta)
+        self.assertIn("impact_frame", review_clip_meta)
 
         # Serve the clip file and assert it exists and is non-zero bytes
         clip_resp = self.client.get(review_clip_url)

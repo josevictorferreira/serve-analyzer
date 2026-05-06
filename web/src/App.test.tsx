@@ -91,7 +91,6 @@ describe('App', () => {
     expect(screen.getByText(/Upload Wall Video/i)).toBeInTheDocument()
     expect(screen.getByText('Upload')).toBeInTheDocument()
     expect(screen.getByText('Calibrate')).toBeInTheDocument()
-    expect(screen.getByText('Configure')).toBeInTheDocument()
     expect(screen.getByText('Analyze')).toBeInTheDocument()
     expect(screen.getByText('Results')).toBeInTheDocument()
   })

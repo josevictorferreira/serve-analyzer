@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Card,
   CardContent,
@@ -31,7 +31,7 @@ interface WallResult {
   measured?: Record<string, unknown>
   inferred?: Record<string, unknown>
   assumed?: Record<string, unknown>
-  confidence?: number
+  confidence?: number | Record<string, unknown>
   warnings?: Array<{ code?: string; message: string }>
   artifacts?: Record<string, unknown>
 }
@@ -229,9 +229,11 @@ function AnnotatedVideoCard({
   const [impactTime, setImpactTime] = useState<number | null>(externalImpactTime ?? null)
 
   // Sync external value if it changes
-  if (externalImpactTime != null && impactTime !== externalImpactTime) {
-    setImpactTime(externalImpactTime)
-  }
+  useEffect(() => {
+    if (externalImpactTime != null) {
+      setImpactTime(externalImpactTime)
+    }
+  }, [externalImpactTime])
 
   const videoUrl = getArtifactUrl(artifacts, "annotated_video")
 
@@ -332,15 +334,18 @@ function ReviewClipCard({
 
 function PlotsGallery({ artifacts }: { artifacts: Record<string, unknown> }) {
   const plots = artifacts.plots as Record<string, unknown> | undefined
+  const [enlarged, setEnlarged] = useState<string | null>(null)
+
   if (!plots) return null
 
-  const plotEntries = Object.entries(plots).filter(
-    ([, v]) => v != null && typeof v === "object" && "url" in (v as object)
-  ) as Array<[string, { url: string }]>
+  const normalizedPlots = Object.entries(plots)
+    .map(([name, value]) => ({
+      name,
+      url: typeof value === "string" ? value : (value as Record<string, unknown>)?.url as string | undefined,
+    }))
+    .filter((p): p is { name: string; url: string } => !!p.url)
 
-  if (plotEntries.length === 0) return null
-
-  const [enlarged, setEnlarged] = useState<string | null>(null)
+  if (normalizedPlots.length === 0) return null
 
   return (
     <Card>
@@ -353,33 +358,32 @@ function PlotsGallery({ artifacts }: { artifacts: Record<string, unknown> }) {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {plotEntries.map(([key, plot]) => (
+          {normalizedPlots.map(({ name, url }) => (
             <button
-              key={key}
+              key={name}
               type="button"
               className="group relative cursor-zoom-in overflow-hidden rounded-lg border bg-card"
-              onClick={() => setEnlarged(enlarged === key ? null : key)}
+              onClick={() => setEnlarged(enlarged === name ? null : name)}
             >
               <img
-                src={plot.url}
-                alt={`${key} plot`}
+                src={url}
+                alt={`${name} plot`}
                 className="w-full transition-transform duration-200 group-hover:scale-105"
               />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1 text-xs text-white">
-                {key.replace(/_/g, " ")}
+                {name.replace(/_/g, " ")}
               </div>
             </button>
           ))}
         </div>
       </CardContent>
-      {/* Lightbox overlay */}
-      {enlarged && (
+      {enlarged && normalizedPlots.find(p => p.name === enlarged) && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={() => setEnlarged(null)}
         >
           <img
-            src={(plots[enlarged] as { url: string }).url}
+            src={normalizedPlots.find(p => p.name === enlarged)!.url}
             alt={`${enlarged} plot enlarged`}
             className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
           />
@@ -393,14 +397,16 @@ function ConfidenceWarningsCard({
   confidence,
   warnings,
 }: {
-  confidence?: number
+  confidence?: number | Record<string, unknown>
   warnings?: Array<{ code?: string; message: string }>
 }) {
+  const scoreValue = typeof confidence === "number" ? confidence : ((confidence as Record<string, unknown>)?.score) as number | undefined
+  const scoreNum = scoreValue ?? null
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          {confidence != null && confidence >= 0.8 ? (
+          {scoreNum != null && scoreNum >= 0.8 ? (
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           ) : (
             <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -412,8 +418,8 @@ function ConfidenceWarningsCard({
         {/* Confidence score */}
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Confidence Score</span>
-          <Badge variant={confidence != null ? confidenceBadgeVariant(confidence) : "outline"}>
-            {pct(confidence ?? 0)}
+          <Badge variant={scoreNum != null ? confidenceBadgeVariant(scoreNum) : "outline"}>
+            {pct(scoreNum ?? 0)}
           </Badge>
         </div>
 

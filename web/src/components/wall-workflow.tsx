@@ -7,13 +7,11 @@ import { WallResultsDashboard } from './wall-results-dashboard';
 import { resetWallJob } from '@/lib/wall-api';
 import type { WallVideoUploadResponse } from '@/lib/wall-types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RotateCcw, Check, ChevronRight } from 'lucide-react';
 
 const STEPS = [
   { key: 'upload', label: 'Upload' },
   { key: 'calibrate', label: 'Calibrate' },
-  { key: 'configure', label: 'Configure' },
   { key: 'analyze', label: 'Analyze' },
   { key: 'results', label: 'Results' },
 ] as const;
@@ -25,7 +23,7 @@ function phaseToActiveStep(phase: WorkflowPhase): StepKey {
   switch (phase) {
     case 'idle': return 'upload';
     case 'uploaded': return 'calibrate';
-    case 'calibrated': return 'configure';
+    case 'calibrated':
     case 'configured': return 'analyze';
     case 'analyzing': return 'analyze';
     case 'done': return 'results';
@@ -133,15 +131,9 @@ export function WallWorkflow() {
               videoId={videoData.video_id}
               calibrationFrame={currentFrame}
               fps={videoData.fps}
-              onCalibrated={() => setPhase('calibrated')}
+              onCalibrated={() => setPhase('configured')}
             />
           </div>
-        )}
-
-        {activeStep === 'configure' && (
-          <PlaceholderCard title="Configure">
-            <p>Configure analysis parameters — contact height, wall distance, and more.</p>
-          </PlaceholderCard>
         )}
 
         {activeStep === 'analyze' && (
@@ -175,18 +167,5 @@ export function WallWorkflow() {
         </div>
       )}
     </div>
-  );
-}
-
-function PlaceholderCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Card className="w-full max-w-2xl border-dashed">
-      <CardHeader>
-        <CardTitle className="text-center">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex items-center justify-center h-48 text-muted-foreground text-center">
-        {children}
-      </CardContent>
-    </Card>
   );
 }

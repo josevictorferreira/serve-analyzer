@@ -122,8 +122,10 @@ def run_wall_analysis(
             clip_path, review_meta = clip_info
             fname = os.path.basename(clip_path)
             result["artifacts"] = dict(result.get("artifacts", {}))
-            result["artifacts"]["review_clip"] = {"url": f"/api/wall/artifacts/{fname}"}
-            result["review"] = dict(review_meta)
-            result["review"]["impact_frame"] = measured.get("impact_frame")
+            result["artifacts"]["review_clip"] = {
+                **dict(review_meta),
+                "url": f"/api/wall/artifacts/{fname}",
+                "impact_frame": measured.get("impact_frame"),
+            }
 
     return result
