@@ -100,3 +100,10 @@ class WallCalibrationDeleteResponse(BaseModel):
 
     status: str
     message: str
+
+
+class WallAnalyzeResponse(BaseModel):
+    """Response from POST /api/wall/analyze."""
+
+    status: str
+    message: str

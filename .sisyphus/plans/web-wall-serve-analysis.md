@@ -196,7 +196,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): persist wall calibration state` | Files: `web/backend/*`, `tests/test_wall_web_calibration.py`
 
-- [ ] 3. Wall analysis adapter, normalized result contract, and nested artifacts
+- [x] 3. Wall analysis adapter, normalized result contract, and nested artifacts
 
   **What to do**: Add `POST /api/wall/analyze` and `GET /api/wall/job`. The analyze route must require a staged `video_id` and saved calibration. It must call `serve_analyzer.wall_serve._process_video()` using the staged video, calibration JSON, and wall output dir; then read `result.json` and `result.csv` from disk to build the API response. Normalize artifact paths into relative browser URLs under `GET /api/wall/artifacts/{artifact_path:path}`. Preserve the exact top-level result keys: `measured`, `inferred`, `assumed`, `confidence`, `warnings`, `artifacts`. Add path traversal protection: resolved artifact path must stay under the current wall job output root.
   **Must NOT do**: Do not trust `_process_video()` return value for full JSON. Do not expose absolute filesystem paths. Do not flatten plots if nested serving is chosen.

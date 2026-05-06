@@ -4,6 +4,7 @@ import os
 import shutil
 import threading
 from typing import Any
+from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,7 @@ from .paths import (
     get_wall_temp_dir,
     make_temp_video_path,
 )
+from .paths import get_wall_output_dir
 from .schemas import (
     AnalyzeResponse,
     AnnotationEvaluationResponse,
@@ -46,14 +48,15 @@ from .services.detection_services import (
     resolve_detector_version,
 )
 from .wall_schemas import (
-    WallJobStatus,
-    WallJobResetResponse,
-    WallVideoMetadataResponse,
-    WallVideoUploadResponse,
-    WallCalibrationRequest,
-    WallCalibrationResponse,
-    WallCalibrationGetResponse,
+WallJobStatus,
+WallJobResetResponse,
+WallVideoMetadataResponse,
+WallVideoUploadResponse,
+WallCalibrationRequest,
+WallCalibrationResponse,
+WallCalibrationGetResponse,
     WallCalibrationDeleteResponse,
+    WallAnalyzeResponse,
 )
 from .services.wall_calibration_service import (
     clear_calibration,
@@ -61,6 +64,8 @@ from .services.wall_calibration_service import (
     validate_and_store,
 )
 from serve_analyzer.wall_calibration import WallCalibrationError
+from serve_analyzer.wall_calibration import WallCalibration
+from .services.wall_analysis_service import run_wall_analysis
 from .services.wall_session_service import (
     clear_session,
     get_session,
@@ -571,3 +576,77 @@ async def delete_wall_calibration() -> dict[str, str]:
     """Clear the persisted wall calibration state."""
     clear_calibration()
     return {"status": "deleted", "message": "Wall calibration cleared"}
+
+
+# Wall analysis routes (Task 3 — analysis + artifact serving)
+# ============================================================
+
+
+@app.post("/api/wall/analyze", response_model=WallAnalyzeResponse)
+async def analyze_wall() -> dict[str, str]:
+    """Start wall analysis in the background. Requires staged video + calibration."""
+    if is_any_job_active():
+        raise HTTPException(status_code=409, detail="A job is already active")
+
+    session = get_session()
+    if session is None:
+        raise HTTPException(status_code=400, detail="No wall video is currently staged")
+
+    cal_entry = get_calibration()
+    if cal_entry is None:
+        raise HTTPException(status_code=400, detail="No calibration saved")
+
+    video_id = session.video_id
+    if cal_entry.get("video_id") != video_id:
+        raise HTTPException(
+            status_code=400, detail="Saved calibration does not match staged video"
+        )
+
+    # Reconstruct WallCalibration from stored dict
+    calibration = WallCalibration.from_dict(cal_entry["calibration"])
+
+    reset_wall_state()
+    set_wall_state({"status": WallJobPhase.ANALYZING})
+
+    def _on_progress(phase: str) -> None:
+        if phase == "artifacting":
+            set_wall_state({"status": WallJobPhase.ARTIFACTING})
+
+    def _run() -> None:
+        try:
+            result = run_wall_analysis(
+                session.video_path,
+                calibration,
+                video_id,
+                on_progress=_on_progress,
+            )
+            set_wall_state({"status": WallJobPhase.DONE, "result": result})
+        except Exception as exc:
+            set_wall_state({"status": WallJobPhase.ERROR, "error": str(exc)})
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"status": "accepted", "message": "Wall analysis started"}
+
+
+@app.get("/api/wall/artifacts/{artifact_path:path}")
+async def serve_wall_artifact(artifact_path: str) -> FileResponse:
+    """Serve a wall analysis artifact file with path-traversal protection."""
+    # Reject literal or encoded traversal sequences
+    if ".." in artifact_path or "%2e%2e" in artifact_path:
+        raise HTTPException(status_code=400, detail="Invalid artifact path")
+
+    session = get_session()
+    if session is None:
+        raise HTTPException(status_code=404, detail="No staged video")
+
+    output_dir = Path(get_wall_output_dir(session.video_id))
+    target = (output_dir / artifact_path).resolve()
+    output_dir_resolved = output_dir.resolve()
+
+    if not str(target).startswith(str(output_dir_resolved) + os.sep) and target != output_dir_resolved:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    return FileResponse(str(target))
