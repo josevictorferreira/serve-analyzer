@@ -238,7 +238,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): expose wall analysis API` | Files: `web/backend/*`, `tests/test_wall_web_analysis.py`
 
-- [ ] 4. Impact-centered review clip service
+- [x] 4. Impact-centered review clip service
 
   **What to do**: Add a wall impact review clip generator under `web/backend/services/` using ffmpeg patterns from `clip_service.py`. After successful wall analysis, generate `impact_review.mp4` or `{video_stem}_impact_review.mp4` from the original staged video or annotated video. Use window `start_time_sec = max(impact_time_sec - 1.5, 0.0)` and `end_time_sec = min(impact_time_sec + 1.0, video_duration_sec)`. Encode browser-playable H.264/AAC or silent H.264 MP4 consistent with existing clip service. Add `artifacts.review_clip.url` and `artifacts.review` metadata: `impact_time_sec`, `impact_frame`, `start_time_sec`, `end_time_sec`, `duration_sec`.
   **Must NOT do**: Do not replace the full annotated MP4. Do not require manual editing/correction.
@@ -277,7 +277,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): generate wall impact review clips` | Files: `web/backend/services/*`, `tests/test_wall_web_review_clip.py`
 
-- [ ] 5. Frontend wall mode and staged upload step
+- [x] 5. Frontend wall mode and staged upload step
 
   **What to do**: Add a third mode to `web/src/App.tsx` (or equivalent mode state) named `Wall Analysis`. Build a wall workflow shell with steps: Upload, Calibrate, Configure, Analyze, Results. Upload step calls `POST /api/wall/video`, stores `video_id`, `video_url`, metadata, and displays filename/duration/fps/dimensions. Existing normal serve analysis and annotation modes must continue to work.
   **Must NOT do**: Do not mix wall staged upload with regular serve upload state. Do not start analysis on upload.

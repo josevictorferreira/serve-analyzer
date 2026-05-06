@@ -20,6 +20,17 @@ vi.mock('@/lib/api', () => ({
   getTrainingEnvironment: vi.fn(),
 }))
 
+vi.mock('@/lib/wall-api', () => ({
+  uploadWallVideo: vi.fn(),
+  getWallVideoMetadata: vi.fn(),
+  saveWallCalibration: vi.fn(),
+  getWallCalibration: vi.fn(),
+  deleteWallCalibration: vi.fn(),
+  startWallAnalysis: vi.fn(),
+  getWallJob: vi.fn(),
+  resetWallJob: vi.fn(),
+}))
+
 describe('App', () => {
   beforeEach(() => {
     vi.mocked(useAnalysisJob).mockReturnValue({
@@ -70,5 +81,39 @@ describe('App', () => {
 
     expect(await screen.findByText(/Build Tennis-Ball Dataset/i)).toBeInTheDocument()
     expect(listAnnotationSessions).toHaveBeenCalled()
+  })
+
+  it('switches to wall analysis and renders the workflow stepper', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Wall Analysis/i }))
+
+    expect(screen.getByText(/Upload Wall Video/i)).toBeInTheDocument()
+    expect(screen.getByText('Upload')).toBeInTheDocument()
+    expect(screen.getByText('Calibrate')).toBeInTheDocument()
+    expect(screen.getByText('Configure')).toBeInTheDocument()
+    expect(screen.getByText('Analyze')).toBeInTheDocument()
+    expect(screen.getByText('Results')).toBeInTheDocument()
+  })
+
+  it('shows the wall upload dropzone when wall mode is active', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Wall Analysis/i }))
+
+    expect(screen.getByText(/Drag and drop your wall serve video/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Select File/i })).toBeInTheDocument()
+  })
+
+  it('preserves existing analysis mode when switching back from wall mode', () => {
+    render(<App />)
+
+    // Switch to wall
+    fireEvent.click(screen.getByRole('button', { name: /Wall Analysis/i }))
+    expect(screen.getByText(/Upload Wall Video/i)).toBeInTheDocument()
+
+    // Switch back to analysis
+    fireEvent.click(screen.getByRole('button', { name: /Analyze Serves/i }))
+    expect(screen.getByText(/Upload Serve Video/i)).toBeInTheDocument()
   })
 })

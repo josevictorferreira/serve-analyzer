@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, Clock, Gauge, RefreshCw, Target, Trophy } from 'lucide-react'
+import { WallWorkflow } from './components/wall-workflow'
 
 const PHASE_LABELS: Record<string, string> = {
   idle: 'Idle',
@@ -43,7 +44,7 @@ function formatDuration(seconds: number): string {
 function App() {
   const { phase, progress, error, jobStatus, upload, reset, estimatedDurationSec, analysisProgress } = useAnalysisJob()
   const [activeClipIndex, setActiveClipIndex] = useState(0)
-  const [mode, setMode] = useState<'analysis' | 'annotation'>('analysis')
+  const [mode, setMode] = useState<'analysis' | 'annotation' | 'wall'>('analysis')
   const [detectorVersions, setDetectorVersions] = useState(FALLBACK_DETECTORS)
   const [selectedDetectorVersion, setSelectedDetectorVersion] = useState('v1')
 
@@ -98,6 +99,13 @@ function App() {
             >
               Annotate Ball
             </Button>
+            <Button
+              variant={mode === 'wall' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setMode('wall')}
+            >
+              Wall Analysis
+            </Button>
             {mode === 'analysis' && (phase === 'done' || phase === 'error') && (
               <Button variant="ghost" size="sm" onClick={reset} className="gap-2">
                 <RefreshCw className="w-4 h-4" />
@@ -110,7 +118,9 @@ function App() {
 
       {/* Main Content */}
       <main className="flex-1 container mx-auto py-8 px-6">
-        {mode === 'annotation' ? (
+        {mode === 'wall' ? (
+          <WallWorkflow />
+        ) : mode === 'annotation' ? (
           <AnnotationWorkspace />
         ) : phase === 'idle' ? (
           <div className="h-full flex flex-col items-center justify-center py-12">
