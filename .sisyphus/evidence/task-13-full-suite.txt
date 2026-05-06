@@ -45,10 +45,10 @@ Test FPS extraction. ... ok
 test_get_video_info (test_analysis.TestVideoInfo.test_get_video_info)
 Test video info extraction. ... ok
 test_invalid_video_path (test_analysis.TestVideoInfo.test_invalid_video_path)
-Test with invalid video path. ... [ WARN:0@1.314] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: no source element for URI "/nonexistent/video.mp4"
-[ WARN:0@1.314] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
-[ WARN:0@1.315] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: no source element for URI "/nonexistent/video.mp4"
-[ WARN:0@1.315] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+Test with invalid video path. ... [ WARN:0@1.283] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: no source element for URI "/nonexistent/video.mp4"
+[ WARN:0@1.283] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+[ WARN:0@1.284] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: no source element for URI "/nonexistent/video.mp4"
+[ WARN:0@1.284] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
 ok
 test_baseline_evaluation_counts_reviewed_outcomes (test_annotation_service.TestAnnotationService.test_baseline_evaluation_counts_reviewed_outcomes)
 RJTPP baseline evaluation reports precision and recall from reviewed labels. ... ok
@@ -216,8 +216,8 @@ test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v3.TestD
 test_emits_peak_kmh_with_real_track (test_serve_attempts_v3.TestRecomputePeakVelocities.test_emits_peak_kmh_with_real_track) ... ok
 test_no_track_leaves_peak_kmh_none (test_serve_attempts_v3.TestRecomputePeakVelocities.test_no_track_leaves_peak_kmh_none) ... ok
 test_top_k_is_outlier_robust (test_serve_attempts_v3.TestRecomputePeakVelocities.test_top_k_is_outlier_robust) ... ok
-test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v4.TestDetectServeCandidatesV4.test_cached_detection_output_has_no_evaluator_keys) ... [ WARN:0@1.387] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
-[ WARN:0@1.387] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v4.TestDetectServeCandidatesV4.test_cached_detection_output_has_no_evaluator_keys) ... [ WARN:0@1.359] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
+[ WARN:0@1.359] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
 ok
 test_finds_apex_in_toss (test_serve_attempts_v4.TestDirectionChangeDetection.test_finds_apex_in_toss) ... ok
 test_returns_contact_frame_when_no_apex (test_serve_attempts_v4.TestDirectionChangeDetection.test_returns_contact_frame_when_no_apex) ... ok
@@ -226,11 +226,11 @@ test_refines_contact_frame (test_serve_attempts_v4.TestRefineContactToApex.test_
 test_high_toss_capped_at_max (test_serve_attempts_v5.TestAdaptiveApexOffset.test_high_toss_capped_at_max) ... ok
 test_low_toss_returns_min_offset (test_serve_attempts_v5.TestAdaptiveApexOffset.test_low_toss_returns_min_offset) ... ok
 test_medium_toss_returns_scaled_offset (test_serve_attempts_v5.TestAdaptiveApexOffset.test_medium_toss_returns_scaled_offset) ... ok
-test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v5.TestDetectServeCandidatesV5.test_cached_detection_output_has_no_evaluator_keys) ... [ WARN:0@1.389] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
-[ WARN:0@1.389] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+test_cached_detection_output_has_no_evaluator_keys (test_serve_attempts_v5.TestDetectServeCandidatesV5.test_cached_detection_output_has_no_evaluator_keys) ... [ WARN:0@1.361] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
+[ WARN:0@1.361] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
 ok
-test_v5_detector_label (test_serve_attempts_v5.TestDetectServeCandidatesV5.test_v5_detector_label) ... [ WARN:0@1.389] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
-[ WARN:0@1.389] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
+test_v5_detector_label (test_serve_attempts_v5.TestDetectServeCandidatesV5.test_v5_detector_label) ... [ WARN:0@1.362] global cap_gstreamer.cpp:1436 open OpenCV | GStreamer warning: Error opening bin: unexpected reference "video" - ignoring
+[ WARN:0@1.362] global cap_gstreamer.cpp:1173 isPipelinePlaying OpenCV | GStreamer warning: GStreamer: pipeline have not been created
 ok
 test_empty_input_returns_empty (test_serve_attempts_v5.TestQualityGate.test_empty_input_returns_empty) ... ok
 test_filters_low_rightward_candidates (test_serve_attempts_v5.TestQualityGate.test_filters_low_rightward_candidates) ... ok
@@ -431,7 +431,7 @@ test_window_calculation (test_web_clip_service.TestClipServiceUnit.test_window_c
 Clip window is max(contact - 2.25, 0) to contact + 1.75. ... ok
 
 ----------------------------------------------------------------------
-Ran 248 tests in 7.919s
+Ran 248 tests in 7.576s
 
 OK
 
@@ -460,12 +460,12 @@ Accuracy depends on:
   - Camera angle and perspective
   - Ball motion being primarily in the calibration plane
 
-Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.AUJ3pF/tmpawb750qc/setup.json
-Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.AUJ3pF/tmpi3c7qbrp/setup.json
-Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.AUJ3pF/tmp76ctorfj/setup.json
-Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.AUJ3pF/tmpr8ob16qh/setup.json
-Wrote override to /tmp/nix-shell.weurY0/nix-shell.AUJ3pF/tmpftedouxr/override.json
-Wrote override to /tmp/nix-shell.weurY0/nix-shell.AUJ3pF/tmp4czj8x81/override.json
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.2Cz3NL/tmpp4fxfk0u/setup.json
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.2Cz3NL/tmpjv5wgm36/setup.json
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.2Cz3NL/tmpyv1k4z_e/setup.json
+Wrote calibration to /tmp/nix-shell.weurY0/nix-shell.2Cz3NL/tmp46gdq996/setup.json
+Wrote override to /tmp/nix-shell.weurY0/nix-shell.2Cz3NL/tmp4pttnskd/override.json
+Wrote override to /tmp/nix-shell.weurY0/nix-shell.2Cz3NL/tmpqrmwdwt7/override.json
 usage: python -m serve_analyzer.wall_serve [-h] (--video VIDEO |
                                            --batch BATCH) --metadata METADATA
                                            [--override OVERRIDE]

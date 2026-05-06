@@ -27,6 +27,6 @@ test_variable_fps_metadata_uses_override (test_wall_edge_cases.TestVariableFpsMe
 Synthetic 60 fps video with --fps 30 override; impact_time_sec uses 30 fps timeline. ... ok
 
 ----------------------------------------------------------------------
-Ran 7 tests in 2.224s
+Ran 7 tests in 1.874s
 
 OK

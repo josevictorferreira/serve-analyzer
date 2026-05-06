@@ -205,8 +205,8 @@ def assemble_wall_analysis_result(
 
     # --- Confidence ---
     degraded_intrinsics = (
-        calibration.intrinsics is not None
-        and calibration.intrinsics.source == "approx_exif"
+        calibration.intrinsics is None
+        or calibration.intrinsics.source in ("none", "approx_exif")
     )
     has_refusal = any(
         w in all_warnings for w in ("projection_refused", "insufficient_track")
@@ -217,6 +217,10 @@ def assemble_wall_analysis_result(
         degraded_intrinsics=degraded_intrinsics,
         has_refusal_warning=has_refusal,
     )
+
+    # Inject degraded_intrinsics warning when intrinsics are missing or low-quality.
+    if degraded_intrinsics and "degraded_intrinsics" not in all_warnings:
+        all_warnings = sorted(set(all_warnings) | {"degraded_intrinsics"})
 
     confidence: Dict[str, Any] = {
         "aggregate_score": confidence_score,

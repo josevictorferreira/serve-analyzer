@@ -446,7 +446,7 @@ class TestWallSerialization(unittest.TestCase):
         self.assertEqual(row[CSV_COLUMNS.index("video")], "test_video")
         self.assertEqual(row[CSV_COLUMNS.index("speed_m_s")], 45.0)
         self.assertEqual(row[CSV_COLUMNS.index("landing_x_m")], 1.2)
-        self.assertEqual(row[CSV_COLUMNS.index("warning_codes")], "")
+        self.assertEqual(row[CSV_COLUMNS.index("warning_codes")], "degraded_intrinsics")
 
     def test_refused_projection_still_writes_row_with_warning(self):
         """Refused projection produces CSV row with null fields and projection_refused warning."""

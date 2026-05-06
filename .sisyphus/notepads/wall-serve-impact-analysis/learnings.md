@@ -383,3 +383,10 @@ score = clamp(base, 0, 1)
 ### Evidence
 - `.sisyphus/evidence/task-13-full-suite.txt` — 248 tests, OK
 - `.sisyphus/evidence/task-13-edge-cases.txt` — 7 tests, OK
+
+### Correction (2026-05-06)
+- **Missing intrinsics is now treated as degraded mode.** The original implementation only flagged `approx_exif` as degraded. Atlas review required missing intrinsics (`calibration.intrinsics is None`) to also be degraded, since no intrinsics at all is worse than approximate ones.
+- `wall_outputs.py::assemble_wall_analysis_result` now sets `degraded_intrinsics=True` when `calibration.intrinsics is None` or `source in ("none", "approx_exif")`, and injects the `degraded_intrinsics` warning code into the output.
+- `test_wall_outputs.py::test_parseable_json_and_csv_from_analysis_result` updated: expected warning_codes changed from `""` to `"degraded_intrinsics"`.
+- Duplicate `setup.update(overrides)` in `test_wall_edge_cases.py::_make_calibration_dict` removed.
+- Root `result.json` (runtime artifact) removed from working tree.

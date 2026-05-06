@@ -38,7 +38,6 @@ def _make_calibration_dict(**overrides) -> dict:
         "hook_reference": {"pixel": [290, 100], "height_m": 2.45},
     }
     setup.update(overrides)
-    setup.update(overrides)
     return {"setup": setup}
 
 
@@ -305,7 +304,7 @@ class TestNonexistentManualCorrection(unittest.TestCase):
 
 
 class TestMissingIntrinsics(unittest.TestCase):
-    """Missing intrinsics block produces degraded_intrinsics or correct behavior."""
+    """Missing intrinsics is treated as degraded mode."""
 
     def test_missing_intrinsics_flags_degraded(self):
         """No intrinsics block in metadata; verify pipeline handles it correctly."""
@@ -352,12 +351,19 @@ class TestMissingIntrinsics(unittest.TestCase):
 
             raw = json.loads(result_json.read_text(encoding="utf-8"))
 
-            # When no intrinsics are provided, degraded_intrinsics should be False
-            # in the confidence section (since calibration.intrinsics is None, not approx_exif).
+            # Missing intrinsics (calibration.intrinsics is None) should flag degraded_intrinsics
+            # in the confidence section and emit the warning code.
             confidence = raw.get("confidence", {})
-            self.assertFalse(
+            self.assertTrue(
                 confidence.get("degraded_intrinsics", False),
-                "Missing intrinsics should not flag degraded_intrinsics (only approx_exif does)",
+                "Missing intrinsics should flag degraded_intrinsics in confidence",
+            )
+
+            warnings = raw.get("warnings", [])
+            self.assertIn(
+                "degraded_intrinsics",
+                warnings,
+                "Missing intrinsics should emit degraded_intrinsics warning",
             )
 
             # Confidence aggregate should be reasonable
