@@ -316,7 +316,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): add wall analysis upload flow` | Files: `web/src/*`, `web/src/components/*`
 
-- [ ] 6. Interactive calibration canvas and assumptions form
+- [x] 6. Interactive calibration canvas and assumptions form
 
   **What to do**: Build `WallCalibrationCanvas` and wall assumptions form. Use the staged `video_url` in an HTML video element with scrub controls; overlay a canvas for point selection on the visible frame. Require at least 4 point rows, each pairing clicked image coordinates with wall coordinates in meters. Capture `calibration_frame`/`calibration_time_sec`. Include required wall metadata/contact assumptions needed by the wall pipeline, with clear labels and units. POST to `/api/wall/calibration`; show saved status and calibration RMS/point count.
   **Must NOT do**: Do not implement manual impact correction. Do not use only browser object URLs without backend `video_id`.
@@ -356,7 +356,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): add wall calibration UI` | Files: `web/src/components/*`, `web/src/*`, `web/src/**/*.test.*`
 
-- [ ] 7. Wall analyze trigger, polling hook, and error states
+- [x] 7. Wall analyze trigger, polling hook, and error states
 
   **What to do**: Add frontend API client/hook for `POST /api/wall/analyze` and `GET /api/wall/job`. Analysis starts only when `video_id` and saved calibration exist. Show progress phases: `idle`, `uploaded`, `calibrated`, `queued`, `analyzing`, `artifacting`, `done`, `error`. Handle HTTP 409 global-busy responses with a clear message that another analysis is active. Preserve final payload in state for results dashboard.
   **Must NOT do**: Do not re-upload the video during analysis. Do not poll normal `/api/job` for wall state.

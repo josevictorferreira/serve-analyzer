@@ -82,10 +82,13 @@ export async function deleteWallCalibration(): Promise<void> {
 
 export async function startWallAnalysis(): Promise<{ status: string; message: string }> {
   const response = await fetch('/api/wall/analyze', { method: 'POST' });
-  if (!response.ok) {
-    throw new Error('Failed to start analysis');
+  if (response.status === 409) {
+    throw new Error('Another analysis is already in progress. Please wait.');
   }
-  return response.json();
+if (!response.ok) {
+throw new Error('Failed to start analysis');
+}
+return response.json();
 }
 
 export async function getWallJob(): Promise<WallJobStatus> {
