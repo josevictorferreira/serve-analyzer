@@ -438,7 +438,7 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 
   **Commit**: YES | Message: `feat(web): display wall analysis results` | Files: `web/src/components/*`, `web/src/*`, `web/src/**/*.test.*`
 
-- [ ] 9. End-to-end synthetic integration and regression QA
+- [x] 9. End-to-end synthetic integration and regression QA
 
   **What to do**: Add complete backend and frontend integration coverage for the whole wall web flow. Use synthetic wall fixtures/helpers only. Verify full commands: Python wall web tests, full Python suite, Vitest, web build, and Playwright/manual QA. Include evidence files under `.sisyphus/evidence/`. Update no project docs unless needed by implementation; if docs are changed, keep them scoped to web wall usage.
   **Must NOT do**: Do not introduce real video test dependencies. Do not mark final verification tasks complete before reviewers approve.
@@ -485,10 +485,10 @@ Provide a complete local web UI flow for wall serve analysis so a user can uploa
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ Playwright full wall flow and media/artifact inspection)
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high (+ Playwright full wall flow and media/artifact inspection)
+- [x] F4. Scope Fidelity Check — deep
 
 ## Commit Strategy
 - Commit after each task with the message specified in the task.

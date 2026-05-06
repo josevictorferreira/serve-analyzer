@@ -76,3 +76,101 @@
 - If `impact_time_sec` is `None`, `review_clip` and `review` are omitted silently.
 - Test gotcha: current synthetic wall web analysis fixture can produce `impact_time_sec: null`; the review-clip integration test patches `_process_video()` to write a deterministic impact result while still using the staged synthetic video for ffmpeg clip extraction.
 - Verification: targeted `test_wall_web_review_clip.py` passed; full `python -m unittest discover -s tests -v` passed with 273 tests (3 skipped). Python LSP diagnostics could not run because `pylsp` is not installed.
+
+## 2026-05-06 Task 6 Wall Calibration Canvas and Assumptions Form
+- Created `web/src/components/wall-calibration-canvas.tsx`:
+  - Video + canvas overlay with click-to-place calibration points
+  - Frame scrubber (range slider) synced to video currentTime
+  - Numbered circle markers drawn on canvas via 2D context
+  - Pixel coordinates mapped from display size back to original video dimensions
+  - Point list with remove buttons and "Clear All" action
+  - Minimum 4 points validation message
+- Created `web/src/components/wall-assumptions-form.tsx`:
+  - Contact height input (default 2.80m), contact distance (6.11m), camera distance (1.57m)
+  - Wall reference points table with pixel_x/pixel_y (read-only) and wall_m_x/wall_m_y (editable)
+  - Pre-populates pixel coords from calibration canvas points
+  - Saves via `saveWallCalibration()` with proper `WallCalibrationRequest` shape
+  - Loads existing calibration on mount via `getWallCalibration()`, populates form
+  - Clear calibration button calls `deleteWallCalibration()` and resets form
+  - Validates min 4 points + contact height + all wall coords before saving
+- Modified `web/src/components/wall-workflow.tsx`:
+  - Added state for `calibrationPoints` and `currentFrame`
+  - Replaced calibrate placeholder with `WallCalibrationCanvas` + `WallAssumptionsForm`
+  - Transitions to `calibrated` phase on successful save via `onCalibrated` callback
+  - Resets calibration state on upload and reset
+- Tests added: `wall-calibration-canvas.test.tsx` (5 tests) and `wall-assumptions-form.test.tsx` (5 tests).
+- Test gotcha: `<video>` elements don't have an ARIA "video" role in testing-library — use `container.querySelector('video')` instead of `getByRole('video')`.
+- Test gotcha: `<input type="number">` returns numeric values in testing-library, so `toHaveValue(2.8)` not `toHaveValue('2.80')`.
+- Build: `npm run build` exits 0. Tests: 10/10 new tests pass. Pre-existing `wall-analyze-step` timeouts (4 failures) are unrelated to these changes.
+
+## 2026-05-06 Task 7 Wall Analysis Trigger, Polling Hook, and Error States
+- Created `web/src/components/wall-analyze-step.tsx`:
+  - Start Analysis button: disabled when `isCalibrated=false`, calls `startWallAnalysis()` on click
+  - 409/busy state: shows "Another analysis is running" with Reset and Retry button
+  - Progress polling: `getWallJob()` every 1s via `setInterval`, cleanup on unmount via `useEffect`
+  - Phase labels map: idle/uploading/calibrating/analyzing/artifacting/done/error with descriptive messages
+  - Done state: calls `onDone(result)` with job result data
+  - Error state: shows error message, calls `onError(error)`, shows Reset button
+  - Uses shadcn/ui Card, CardHeader, CardTitle, CardContent, Button + lucide-react icons
+- Modified `web/src/lib/wall-api.ts`:
+  - `startWallAnalysis()` now handles 409 response separately, throwing "Another analysis is already in progress. Please wait." to distinguish from generic errors
+- Modified `web/src/components/wall-workflow.tsx`:
+  - Replaced Analyze placeholder with `<WallAnalyzeStep>`
+  - Tracks `analysisResult` and `analysisError` state
+  - `onDone` stores result and transitions phase to 'done' (enables Results step)
+  - `onError` stores error message (stays on Analyze step for retry)
+  - `isCalibrated` derived from `phase === 'configured'`
+  - Reset handler clears analysisResult and analysisError
+- Tests in `wall-analyze-step.test.tsx` (7 tests):
+  1. Renders start analysis button
+  2. Button disabled when not calibrated
+  3. Shows calibration hint when not calibrated
+  4. Calls startWallAnalysis and starts polling on click
+  5. Shows busy state on 409 response
+  6. Reset button calls resetWallJob and returns to idle
+  7. Shows error state when analysis fails
+- Test gotcha: `vi.useFakeTimers()` is required for tests that use `vi.advanceTimersByTime()`. Must be called in `beforeEach` since `setInterval` is used for polling.
+- Test gotcha: With fake timers, use `act(async () => { ... })` to flush React state updates instead of `waitFor` (which relies on real timers).
+- Build: `npm run build` exits 0. Tests: 33/33 pass.
+
+## 2026-05-06 Task 8 Wall Results Dashboard
+- Created `web/src/components/wall-results-dashboard.tsx`:
+  - Seven sub-components: `MeasuredImpactCard`, `VelocityCard`, `CourtProjectionCard`, `AnnotatedVideoCard`, `ReviewClipCard`, `PlotsGallery`, `ConfidenceWarningsCard`, `AssumptionsCard`, `DownloadLinksCard`
+  - Main `WallResultsDashboard` component renders in responsive 2-col grid (1-col mobile, 2-col lg)
+  - Impact time auto-populates from `measured.impact_time_sec` for "Jump to Impact" button
+  - Plot gallery with CSS-only zoom-on-click lightbox (no external library)
+  - Confidence score shown as percentage badge with color-coded variant (green ≥80%, amber ≥50%, red <50%)
+  - Download links use native `<a>` elements styled to match shadcn Button (the project's `@base-ui/react` Button lacks `asChild`)
+- Modified `web/src/components/wall-workflow.tsx`:
+  - Imported and rendered `WallResultsDashboard` in Results step
+  - Replaced `PlaceholderCard` with real dashboard
+  - Passes `analysisResult` as `result` prop (type: `Record<string, unknown>`)
+- Tests in `wall-results-dashboard.test.tsx` (12 tests):
+  1. Dashboard renders with mock result data (all section titles present)
+  2. Velocity card shows all 3 speed units (m/s, km/h, mph + uncertainty)
+  3. Video players render with artifact URLs
+  4. Plot images render for each plot URL (speed, wall_impact, court_landing)
+  5. JSON/CSV links point to correct URLs
+  6. Measured impact values displayed correctly
+  7. Shows IN service box with green indicator when in_service_box is true
+  8. Shows OUT when in_service_box is false
+  9. Displays confidence score as percentage
+  10. Displays warnings when present
+  11. Renders review clip metadata (start/impact/end times)
+  12. Omits review clip card when review_clip is absent
+- Test gotcha: `/confidence/i` matches both "Confidence & Warnings" card title AND "Confidence Score" label — use `getAllByText` when regex may match multiple elements
+- Build: `npm run build` exits 0. Tests: 45/45 pass (7 test files).
+
+## 2026-05-06 Task 9 End-to-End Synthetic Integration and Regression QA
+- Added `tests/test_wall_web_e2e.py` covering upload → metadata → calibration → analysis polling → six-section result contract → artifact GETs → reset while preserving calibration.
+- E2E synthetic fixture must align `generate_wall_impact_video(..., wall_x_px=...)` with the right-most calibration point because `detect_wall_impact()` derives its wall search band from `max(calibration.wall_reference_points.pixel_x)`. A default `wall_x_px=240` with right calibration corners at `x=540` produces `impact_pixel: null` and therefore null `wall_x_m`/`wall_y_m`.
+- Added frontend result rendering coverage for normalized backend artifact URL shapes where top-level artifact entries may be plain relative strings and nested downloads may be `{url: ...}` objects.
+- Regression evidence written to `.sisyphus/evidence/web-wall-task-9-regression.txt`; final run passed: Python unittest 274 tests (3 skipped), web Vitest 46 tests, and production build.
+
+## Final Wave Blocker Fixes (2026-05-06)
+- Stepper should be 4 steps (Upload→Calibrate→Analyze→Results), not 5. The Configure placeholder step must be removed entirely. After calibration saves, set phase to 'configured' directly.
+- Backend normalizes plot URLs as plain strings (not {url} objects). PlotsGallery must handle both string and {url: string} entries via typeof check.
+- Confidence from backend is a dict with `score` key (not a raw number). ConfidenceWarningsCard must extract score via typeof check.
+- Review clip metadata must live under artifacts.review_clip (merged with url), not as a separate top-level `review` key. The six-section contract is sacred: measured/inferred/assumed/confidence/warnings/artifacts only.
+- React hooks must all be called before any early returns. useState before conditional returns, useEffect instead of render-time setState calls.
+- Removing a step from the stepper requires updating App.test.tsx to not look for the removed step label.
