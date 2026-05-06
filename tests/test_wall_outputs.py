@@ -358,8 +358,9 @@ class _FakeProjectionResult:
 class _FakeCalibration:
     """Minimal stand-in for WallCalibration."""
 
-    def __init__(self, intrinsics=None):
+    def __init__(self, intrinsics=None, wall_reference_points=None):
         self.intrinsics = intrinsics
+        self.wall_reference_points = wall_reference_points or []
 
 
 class TestWallSerialization(unittest.TestCase):

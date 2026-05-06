@@ -12,7 +12,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import numpy as np
+
 from serve_analyzer.wall_calibration import CSV_COLUMNS
+from serve_analyzer.wall_calibration import compute_wall_homography
+from serve_analyzer.wall_calibration import pixel_to_wall
 
 
 # ---------------------------------------------------------------------------
@@ -175,13 +179,40 @@ def assemble_wall_analysis_result(
         "raw_track_samples": len(impact_result.candidate_track),
     }
 
+    # Compute wall-meter coordinates from impact_pixel via calibration homography.
+    wall_x_m: float | None = None
+    wall_y_m: float | None = None
+    if (
+        impact_result.impact_pixel is not None
+        and hasattr(calibration, "wall_reference_points")
+        and len(calibration.wall_reference_points) >= 4
+    ):
+        try:
+            image_pts = np.array(
+                [p.pixel for p in calibration.wall_reference_points], dtype=np.float64
+            )
+            world_pts = np.array(
+                [p.wall_m for p in calibration.wall_reference_points], dtype=np.float64
+            )
+            intrinsics = getattr(calibration, "intrinsics", None)
+            H, _ = compute_wall_homography(image_pts, world_pts, intrinsics=intrinsics)
+            H_inv = np.linalg.inv(H)
+            wall_xy = pixel_to_wall(
+                H_inv, np.array([list(impact_result.impact_pixel)], dtype=np.float64)
+            )
+            wall_x_m = float(wall_xy[0, 0])
+            wall_y_m = float(wall_xy[0, 1])
+        except Exception:
+            pass  # Leave None; degraded path
+    measured["wall_x_m"] = wall_x_m
+    measured["wall_y_m"] = wall_y_m
+
     # Pull reprojection RMS from speed_result metadata if available.
     homography_residuals = speed_result.metadata.get("homography_residuals", {})
     if homography_residuals:
         measured["calibration_reprojection_rms_px"] = homography_residuals.get(
             "reprojection_rms_px"
         )
-
     # --- Inferred ---
     inferred: Dict[str, Any] = {
         "speed_m_s": speed_result.speed_m_s,

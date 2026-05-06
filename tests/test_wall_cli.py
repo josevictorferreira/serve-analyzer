@@ -21,24 +21,21 @@ class TestWallAnalysisCli(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def _make_calibration_json(self, tmpdir: str) -> Path:
-        """Write a minimal valid WallCalibration JSON using synthetic ground-truth positions."""
-        # Ground-truth positions from WallFixtureGroundTruth (320x240, wall at x=240):
-        # We use the wall_x_px=240 and frame dimensions to place reference points.
-        # Wall frame: x along wall (camera-right positive), y up (vertical).
-        # We'll place 4 points at the wall plane.
+        """Write a minimal valid WallCalibration JSON with non-collinear reference points."""
+        # 4 corner-style points spanning the frame for a valid homography.
         cal = {
             "setup": {
                 "serve_contact_distance_m": 6.11,
                 "camera_wall_distance_m": 1.57,
                 "serve_contact_height_m": 2.80,
                 "wall_reference_points": [
-                    {"name": "bottom_left", "pixel": [240, 200], "wall_m": [-4.0, 0.0]},
-                    {"name": "bottom_right", "pixel": [240, 200], "wall_m": [4.0, 0.0]},
-                    {"name": "top_left", "pixel": [240, 40], "wall_m": [-4.0, 3.0]},
-                    {"name": "top_right", "pixel": [240, 40], "wall_m": [4.0, 3.0]},
+                    {"name": "bottom_left", "pixel": [100, 400], "wall_m": [-4.0, 0.0]},
+                    {"name": "bottom_right", "pixel": [540, 400], "wall_m": [4.0, 0.0]},
+                    {"name": "top_left", "pixel": [100, 80], "wall_m": [-4.0, 3.0]},
+                    {"name": "top_right", "pixel": [540, 80], "wall_m": [4.0, 3.0]},
                 ],
-                "hook_reference": {"pixel": [240, 60], "height_m": 2.45},
-                "chair_references": [{"pixel": [240, 180], "height_m": 1.0}],
+                "hook_reference": {"pixel": [320, 60], "height_m": 2.45},
+                "chair_references": [{"pixel": [320, 180], "height_m": 1.0}],
             }
         }
         path = Path(tmpdir) / "calibration.json"
@@ -63,7 +60,7 @@ class TestWallAnalysisCli(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 0)
 
     def test_synthetic_end_to_end_outputs_all_artifacts(self):
-        """Synthetic video produces result.json and result.csv; tolerates missing T10 artifacts."""
+        """Synthetic video produces all required artifacts: JSON, CSV, annotated MP4, plots."""
         with tempfile.TemporaryDirectory() as tmpdir:
             cal_path = self._make_calibration_json(tmpdir)
             video_path = Path(tmpdir) / "synthetic_serve.mp4"
@@ -87,35 +84,49 @@ class TestWallAnalysisCli(unittest.TestCase):
                 captured = sys.stderr.getvalue()
                 sys.stderr = old_stderr
 
-            self.assertEqual(exit_code, 0)
+            self.assertEqual(exit_code, 0, f"CLI failed. stderr: {captured}")
 
             video_stem = video_path.stem
             video_out = output_dir / video_stem
             self.assertTrue(video_out.exists())
 
+            # --- JSON with 6 sections and non-null wall meters ---
             result_json = video_out / "result.json"
             self.assertTrue(result_json.exists())
             raw = json.loads(result_json.read_text(encoding="utf-8"))
-            self.assertIn("measured", raw)
-            self.assertIn("inferred", raw)
-            self.assertIn("assumed", raw)
-            self.assertIn("confidence", raw)
-            self.assertIn("warnings", raw)
-            self.assertIn("artifacts", raw)
+            for section in ("measured", "inferred", "assumed", "confidence", "warnings", "artifacts"):
+                self.assertIn(section, raw)
 
+            # Wall-meter coordinates must be populated for calibrated impacts
+            self.assertIsNotNone(
+                raw["measured"].get("wall_x_m"),
+                "wall_x_m should be non-null for calibrated impact",
+            )
+            self.assertIsNotNone(
+                raw["measured"].get("wall_y_m"),
+                "wall_y_m should be non-null for calibrated impact",
+            )
+            # --- CSV ---
             result_csv = video_out / "result.csv"
             self.assertTrue(result_csv.exists())
             lines = result_csv.read_text(encoding="utf-8").strip().splitlines()
             self.assertEqual(len(lines), 2)  # header + 1 row
 
-            # T10 artifacts are implemented but CLI wiring (T13) uses old signatures;
-            # absence is tolerated with warnings about generation failure.
-            if not (video_out / f"{video_stem}_annotated.mp4").exists():
-                self.assertTrue(
-                    "wall_artifacts" in captured.lower()
-                    or "failed" in captured.lower(),
-                    f"Expected warning about missing artifacts, got: {captured}",
-                )
+            # --- Annotated video at deterministic path ---
+            annotated = video_out / f"{video_stem}_annotated.mp4"
+            self.assertTrue(
+                annotated.exists(),
+                f"Annotated MP4 must exist at {annotated}. stderr: {captured}",
+            )
+
+            # --- Plot PNGs under plots/ subdir ---
+            plots_dir = video_out / "plots"
+            self.assertTrue(plots_dir.exists(), "plots/ directory must exist")
+            plot_pngs = list(plots_dir.glob("*.png"))
+            self.assertGreaterEqual(
+                len(plot_pngs), 3,
+                f"Expected >= 3 plot PNGs, got {len(plot_pngs)}: {plot_pngs}",
+            )
 
     def test_no_video_no_plots_flags_skip_artifacts(self):
         """--no-video and --no-plots skip heavy artifacts but still produce JSON/CSV."""

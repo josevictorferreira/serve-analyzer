@@ -872,7 +872,10 @@ Examples:
     )
     parser.add_argument(
         "--manual-corrections",
-        help='Optional JSON mapping serve_index -> {"pixel_x": int, "pixel_y": int}',
+        help=(
+            'Optional JSON mapping serve_index -> '
+            '{"pixel_x": int, "pixel_y": int, "impact_frame": int (optional)}'
+        ),
     )
     parser.add_argument(
         "--no-video",
@@ -974,8 +977,11 @@ def _process_video(
             # Normalize to expected dict shape
             px = correction.get("pixel_x")
             py = correction.get("pixel_y")
+            if_f = correction.get("impact_frame")
             if px is not None and py is not None:
                 correction = {"impact_pixel": (float(px), float(py))}
+                if if_f is not None:
+                    correction["impact_frame"] = int(if_f)
 
     # --- Detection ---
     impact_result = detect_wall_impact(
@@ -1002,7 +1008,7 @@ def _process_video(
         render_plots = None  # type: ignore[assignment]
 
     if not no_video and render_annotated_video is not None:
-        annotated_path = output_dir / "annotated.mp4"
+        annotated_path = output_dir / f"{video_stem}_annotated.mp4"
         try:
             render_annotated_video(
                 video_path, impact_result, speed_result,
@@ -1013,10 +1019,12 @@ def _process_video(
             sys.stderr.write(f"Warning: annotated video generation failed: {exc}\n")
 
     if not no_plots and render_plots is not None:
+        plots_dir = output_dir / "plots"
+        plots_dir.mkdir(parents=True, exist_ok=True)
         try:
             plot_paths = render_plots(
                 impact_result, speed_result, projection_result,
-                calibration, str(output_dir), video_stem=video_stem,
+                calibration, str(plots_dir), video_stem=video_stem,
             )
             artifact_paths["plots"] = {k: str(v) for k, v in plot_paths.items()}
         except Exception as exc:

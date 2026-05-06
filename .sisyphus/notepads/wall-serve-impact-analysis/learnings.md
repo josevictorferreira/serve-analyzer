@@ -395,3 +395,12 @@ score = clamp(base, 0, 1)
 - Do NOT subclass `cv2.VideoCapture` in tests; native C++ destructor causes segfaults on cleanup.
 - Replaced `_SwappedVC(cv2.VideoCapture)` with pure-Python `MagicMock` that implements `isOpened`, `get`, `read`, `set`, `release` without any native inheritance.
 - The mock returns swapped dimensions (480×640 instead of 640×480) and `(False, None)` for reads, which triggers `insufficient_track` gracefully.
+
+### Final Wave Fixes (2026-05-06)
+
+F1/F2 rejection fixes:
+1. **wall_x_m/wall_y_m now populated**: `assemble_wall_analysis_result` computes wall-meter coordinates from `impact_pixel` using calibration homography. Falls back to `None` if homography fails or impact_pixel is None.
+2. **Artifact naming standardized**: Annotated video at `{video_stem}_annotated.mp4`, plots under `plots/` subdirectory.
+3. **Manual corrections accept impact_frame**: CLI normalizes `impact_frame` from corrections JSON and passes it to `detect_wall_impact`.
+4. **Tests assert mandatory artifacts**: `test_synthetic_end_to_end_outputs_all_artifacts` now requires JSON, CSV, annotated MP4, and plot PNGs. Non-collinear calibration points ensure homography succeeds.
+5. **Test calibration fixtures must have non-collinear image points**: All pixel x=240 caused collinear rejection in `compute_wall_homography`. Updated to spread across frame.
