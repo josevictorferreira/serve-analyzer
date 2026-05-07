@@ -124,6 +124,8 @@ export function WallGridCalibration({
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
   const [currentFrame, setCurrentFrame] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
 
   // Grid dimensions (world meters)
   const [gridWidth, setGridWidth] = useState('2.0');
@@ -469,6 +471,32 @@ export function WallGridCalibration({
     []
   );
 
+  // Trim handlers — clamp currentFrame to new range
+  const handleTrimStartChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newStart = parseInt(e.target.value, 10);
+      setTrimStart(newStart);
+      setCurrentFrame((prev) => Math.max(newStart, Math.min(prev, trimEnd)));
+    },
+    [trimEnd]
+  );
+
+  const handleTrimEndChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newEnd = parseInt(e.target.value, 10);
+      setTrimEnd(newEnd);
+      setCurrentFrame((prev) => Math.max(trimStart, Math.min(prev, newEnd)));
+    },
+    [trimStart]
+  );
+
+  // Initialize trim range when video metadata is available
+  useEffect(() => {
+    if (videoMetadata.frame_count > 0) {
+      setTrimEnd(videoMetadata.frame_count - 1);
+    }
+  }, [videoMetadata.frame_count]);
+
   // Clear calibration
   const handleClearCalibration = useCallback(async () => {
     try {
@@ -577,22 +605,80 @@ export function WallGridCalibration({
           />
         </div>
 
-        {/* Frame Scrubber */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Frame: {currentFrame}</span>
-            <span>Time: {(currentFrame / videoMetadata.fps).toFixed(2)}s</span>
-            <span>Total: {videoMetadata.frame_count} frames</span>
+        {/* Frame Scrubber & Trim Controls */}
+        <div className="space-y-3">
+          {/* Trim Range Controls */}
+          <div className="space-y-2 rounded-md border border-border/50 bg-muted/30 p-3">
+            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span>Trim Range</span>
+              <span>
+                Trimmed: frame {trimStart} to {trimEnd} (
+                {(trimStart / videoMetadata.fps).toFixed(1)}s – 
+                {(trimEnd / videoMetadata.fps).toFixed(1)}s, 
+                {((trimEnd - trimStart) / videoMetadata.fps).toFixed(1)}s)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground" htmlFor="trim-start">
+                  Start: frame {trimStart} ({(trimStart / videoMetadata.fps).toFixed(1)}s)
+                </label>
+                <input
+                  id="trim-start"
+                  type="range"
+                  min={0}
+                  max={Math.max(trimStart, trimEnd - 1)}
+                  value={trimStart}
+                  onChange={handleTrimStartChange}
+                  className="w-full accent-primary"
+                  aria-label="Trim start frame"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground" htmlFor="trim-end">
+                  End: frame {trimEnd} ({(trimEnd / videoMetadata.fps).toFixed(1)}s)
+                </label>
+                <input
+                  id="trim-end"
+                  type="range"
+                  min={Math.min(trimStart + 1, trimEnd)}
+                  max={videoMetadata.frame_count - 1}
+                  value={trimEnd}
+                  onChange={handleTrimEndChange}
+                  className="w-full accent-primary"
+                  aria-label="Trim end frame"
+                />
+              </div>
+            </div>
+            {/* Visual trim region bar */}
+            <div className="relative mt-1 h-2 rounded-full bg-muted">
+              <div
+                className="absolute top-0 h-2 rounded-full bg-primary/60"
+                style={{
+                  left: `${(trimStart / (videoMetadata.frame_count - 1)) * 100}%`,
+                  width: `${((trimEnd - trimStart) / (videoMetadata.frame_count - 1)) * 100}%`,
+                }}
+              />
+            </div>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={videoMetadata.frame_count - 1}
-            value={currentFrame}
-            onChange={handleSliderChange}
-            className="w-full accent-primary"
-            aria-label="Frame scrubber"
-          />
+
+          {/* Frame Navigation Scrubber (clamped to trim range) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Frame: {currentFrame}</span>
+              <span>Time: {(currentFrame / videoMetadata.fps).toFixed(2)}s</span>
+              <span>Range: {trimStart}–{trimEnd}</span>
+            </div>
+            <input
+              type="range"
+              min={trimStart}
+              max={trimEnd}
+              value={currentFrame}
+              onChange={handleSliderChange}
+              className="w-full accent-primary"
+              aria-label="Frame scrubber"
+            />
+          </div>
         </div>
 
         {/* Grid Settings */}
