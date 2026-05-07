@@ -130,6 +130,7 @@ export function WallGridCalibration({
   // Grid dimensions (world meters)
   const [gridWidth, setGridWidth] = useState('2.0');
   const [gridHeight, setGridHeight] = useState('3.0');
+  const [bottomEdgeHeight, setBottomEdgeHeight] = useState('0.0');
   const [contactHeight, setContactHeight] = useState('2.80');
   const [contactDistance, setContactDistance] = useState('6.11');
   const [cameraDistance, setCameraDistance] = useState('1.57');
@@ -257,14 +258,15 @@ export function WallGridCalibration({
 
     const gw = parseFloat(gridWidth) || 2.0;
     const gh = parseFloat(gridHeight) || 3.0;
+    const beh = parseFloat(bottomEdgeHeight) || 0.0;
     const halfW = gw / 2;
 
-    // Build world corner points
+    // Build world corner points (shifted by bottom edge height)
     const worldPts: [number, number][] = [
-      [-halfW, 0],
-      [halfW, 0],
-      [-halfW, gh],
-      [halfW, gh],
+      [-halfW, beh],
+      [halfW, beh],
+      [-halfW, beh + gh],
+      [halfW, beh + gh],
     ];
 
     // Build pixel corner points (original video coords → display coords)
@@ -300,7 +302,7 @@ export function WallGridCalibration({
       ctx.stroke();
     }
 
-    // Height reference markers on left edge
+    // Height reference markers on left edge (only draw if >= bottom edge height)
     const heightRefs = [
       { y: 1.0, label: '1.0m (chair)', color: 'rgba(255, 200, 0, 0.7)' },
       { y: 2.45, label: '2.45m (hook)', color: 'rgba(255, 100, 100, 0.7)' },
@@ -312,6 +314,9 @@ export function WallGridCalibration({
     ctx.textAlign = 'left';
 
     for (const ref of heightRefs) {
+      // Skip markers below the grid's bottom edge
+      if (ref.y < beh) continue;
+
       const pt = projectPoint(H, [-halfW, ref.y]);
       const leftEdge = projectPoint(H, [-halfW - 0.1, ref.y]);
       ctx.strokeStyle = ref.color;
@@ -512,6 +517,7 @@ export function WallGridCalibration({
   const handleSave = useCallback(async () => {
     const gw = parseFloat(gridWidth) || 2.0;
     const gh = parseFloat(gridHeight) || 3.0;
+    const beh = parseFloat(bottomEdgeHeight) || 0.0;
     const halfW = gw / 2;
     const ch = parseFloat(contactHeight);
 
@@ -533,10 +539,10 @@ export function WallGridCalibration({
     try {
       const calibrationTimeSec = currentFrame / videoMetadata.fps;
       const worldPts: [number, number][] = [
-        [-halfW, 0],
-        [halfW, 0],
-        [-halfW, gh],
-        [halfW, gh],
+        [-halfW, beh],
+        [halfW, beh],
+        [-halfW, beh + gh],
+        [halfW, beh + gh],
       ];
 
       const wallPoints = corners.map((c, i) => ({
@@ -570,6 +576,7 @@ export function WallGridCalibration({
   }, [
     gridWidth,
     gridHeight,
+    bottomEdgeHeight,
     contactHeight,
     corners,
     currentFrame,
@@ -684,7 +691,7 @@ export function WallGridCalibration({
         {/* Grid Settings */}
         <div className="space-y-4">
           <h3 className="text-sm font-medium">Grid Dimensions</h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="grid-width">
                 Grid Width (m)
@@ -710,6 +717,22 @@ export function WallGridCalibration({
                 onChange={(e) => setGridHeight(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="bottom-edge-height">
+                Bottom Edge Height from Floor (m)
+              </label>
+              <input
+                id="bottom-edge-height"
+                type="number"
+                step="0.1"
+                value={bottomEdgeHeight}
+                onChange={(e) => setBottomEdgeHeight(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Height of the grid&#39;s bottom edge above the floor (0 if bottom edge is at floor level)
+              </p>
             </div>
           </div>
         </div>
