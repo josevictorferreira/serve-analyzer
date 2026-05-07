@@ -161,7 +161,6 @@ class CourtProjectionResult:
     warnings: List[str]
 
 
-
 def _find_ball_in_frame(
     gray: np.ndarray,
     wall_x_px: float,
@@ -198,6 +197,329 @@ def _find_ball_in_frame(
     cx = moment["m10"] / moment["m00"] + x_lo
     cy = moment["m01"] / moment["m00"] + y_min
     return (float(cx), float(cy))
+
+
+@dataclass(frozen=True)
+class ImpactWindow:
+    """Candidate wall-impact window detected in a full-video scan.
+
+    Attributes
+    ----------
+    start_frame
+        First frame in the candidate episode.
+    end_frame
+        Last frame in the candidate episode.
+    candidate_track
+        Ball-position candidates in this window as ``(frame, x_px, y_px)``.
+    brightness_changes
+        Wall-band brightness deltas in this window as ``(frame, delta)``.
+    impact_frame
+        Best estimated wall-impact frame for this window.
+    impact_x_px
+        Best estimated impact x-coordinate in pixels.
+    impact_y_px
+        Best estimated impact y-coordinate in pixels.
+    confidence
+        Scalar confidence score in the range ``0.0`` to ``1.0``.
+    """
+
+    start_frame: int
+    end_frame: int
+    candidate_track: List[Tuple[int, float, float]]
+    brightness_changes: List[Tuple[int, float]]
+    impact_frame: int
+    impact_x_px: float
+    impact_y_px: float
+    confidence: float
+
+
+def scan_wall_candidates(
+    video_path: Union[str, Path],
+    wall_x_px: float,
+    *,
+    frame_skip: int = 1,
+) -> Dict:
+    """Scan a video for ball candidates and wall-band brightness changes.
+
+    Parameters
+    ----------
+    video_path
+        Path to the video file.
+    wall_x_px
+        Calibrated wall x-coordinate in pixels.
+    frame_skip
+        Process one frame every *frame_skip* frames.  Skipped frames are
+        advanced with ``VideoCapture.grab()`` to avoid unnecessary decoding.
+
+    Returns
+    -------
+    Dict
+        Metadata and scan data with keys ``candidate_track``,
+        ``brightness_changes``, ``fps``, ``frame_count``, ``width``, and
+        ``height``.
+    """
+    video_path = str(video_path)
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video: {video_path}")
+
+    frame_skip = max(1, int(frame_skip))
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    search_half_width = max(60.0, width * 0.15)
+    candidate_track: List[Tuple[int, float, float]] = []
+    brightness_changes: List[Tuple[int, float]] = []
+    prev_gray: Optional[np.ndarray] = None
+    frame_idx = 0
+
+    while frame_idx < frame_count:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        pos = _find_ball_in_frame(
+            gray,
+            wall_x_px=wall_x_px,
+            search_half_width=search_half_width,
+            brightness_threshold=200.0,
+        )
+        if pos is not None:
+            candidate_track.append((frame_idx, pos[0], pos[1]))
+
+        x_lo = max(0, int(wall_x_px - 15))
+        x_hi = min(width, int(wall_x_px + 15))
+        wall_band = gray[:, x_lo:x_hi]
+        mean_brightness = float(np.mean(wall_band)) if wall_band.size > 0 else 0.0
+        if prev_gray is not None:
+            prev_band = prev_gray[:, x_lo:x_hi]
+            prev_brightness = float(np.mean(prev_band)) if prev_band.size > 0 else 0.0
+            delta = abs(mean_brightness - prev_brightness)
+            brightness_changes.append((frame_idx, delta))
+
+        prev_gray = gray
+        for _ in range(frame_skip - 1):
+            if not cap.grab():
+                break
+            frame_idx += 1
+        frame_idx += 1
+
+    cap.release()
+    return {
+        "candidate_track": candidate_track,
+        "brightness_changes": brightness_changes,
+        "fps": fps,
+        "frame_count": frame_count,
+        "width": width,
+        "height": height,
+    }
+
+
+def estimate_local_bounce_score(
+    candidate_track: List[Tuple[int, float, float]],
+    frame_number: int,
+    *,
+    frame_radius: int = 5,
+) -> float:
+    """Estimate whether local x-motion shows a wall bounce.
+
+    Parameters
+    ----------
+    candidate_track
+        Episode track points as ``(frame, x_px, y_px)`` tuples.
+    frame_number
+        Candidate impact frame around which to compare x-velocity.
+    frame_radius
+        Number of frames before and after *frame_number* used for the local
+        velocity estimate.
+
+    Returns
+    -------
+    float
+        ``1.0`` when x increases before impact and decreases after impact,
+        otherwise ``0.0``.
+    """
+    before = [
+        p for p in candidate_track if frame_number - frame_radius <= p[0] < frame_number
+    ]
+    after = [
+        p for p in candidate_track if frame_number < p[0] <= frame_number + frame_radius
+    ]
+    if len(before) < 2 or len(after) < 2:
+        return 0.0
+
+    before_velocity = before[-1][1] - before[0][1]
+    after_velocity = after[-1][1] - after[0][1]
+    return 1.0 if before_velocity > 0.0 and after_velocity < 0.0 else 0.0
+
+
+def segment_wall_impacts(
+    candidate_track: List[Tuple[int, float, float]],
+    brightness_changes: List[Tuple[int, float]],
+    fps: float,
+    wall_x_px: float,
+) -> List[ImpactWindow]:
+    """Segment candidate tracks into scored wall-impact windows.
+
+    Parameters
+    ----------
+    candidate_track
+        Full-video ball-position candidates as ``(frame, x_px, y_px)``.
+    brightness_changes
+        Full-video wall-band brightness deltas as ``(frame, delta)``.
+    fps
+        Video frame rate used to derive temporal thresholds.
+    wall_x_px
+        Calibrated wall x-coordinate in pixels.
+
+    Returns
+    -------
+    List[ImpactWindow]
+        Scored candidate impact windows sorted by impact frame.
+    """
+    fps = fps if fps > 0.0 else 30.0
+    max_gap_frames = max(1, round(fps * 0.25))
+    min_window_frames = max(2, round(fps * 0.08))
+    max_brightness = max((delta for _, delta in brightness_changes), default=0.0)
+
+    def make_window(track: List[Tuple[int, float, float]]) -> Optional[ImpactWindow]:
+        if len(track) < min_window_frames:
+            return None
+
+        impact_entry = min(track, key=lambda p: abs(p[1] - wall_x_px))
+        impact_frame, impact_x_px, impact_y_px = impact_entry
+        start_frame = track[0][0]
+        end_frame = track[-1][0]
+        window_brightness = [
+            (frame, delta)
+            for frame, delta in brightness_changes
+            if start_frame <= frame <= end_frame
+        ]
+        min_wall_distance = abs(impact_x_px - wall_x_px)
+        wall_proximity = max(
+            0.0, 1.0 - (min_wall_distance / max(1.0, abs(wall_x_px) * 0.15))
+        )
+        peak_delta = max((delta for _, delta in window_brightness), default=0.0)
+        brightness = peak_delta / max_brightness if max_brightness > 0.0 else 0.0
+        bounce = estimate_local_bounce_score(track, impact_frame)
+        score = (0.60 * wall_proximity) + (0.30 * brightness) + (0.10 * bounce)
+        if score < 0.35:
+            return None
+        return ImpactWindow(
+            start_frame=start_frame,
+            end_frame=end_frame,
+            candidate_track=track,
+            brightness_changes=window_brightness,
+            impact_frame=impact_frame,
+            impact_x_px=impact_x_px,
+            impact_y_px=impact_y_px,
+            confidence=float(score),
+        )
+
+    windows: List[ImpactWindow] = []
+    if candidate_track:
+        current: List[Tuple[int, float, float]] = [candidate_track[0]]
+        for point in candidate_track[1:]:
+            if point[0] - current[-1][0] <= max_gap_frames:
+                current.append(point)
+            else:
+                window = make_window(current)
+                if window is not None:
+                    windows.append(window)
+                current = [point]
+        window = make_window(current)
+        if window is not None:
+            windows.append(window)
+
+    if not windows and brightness_changes:
+        from scipy.signal import find_peaks
+
+        frames = [frame for frame, _ in brightness_changes]
+        deltas = np.array([delta for _, delta in brightness_changes], dtype=float)
+        peak_indices, _ = find_peaks(deltas, distance=max(1, round(fps * 0.4)))
+        for peak_idx in peak_indices:
+            peak_frame = frames[int(peak_idx)]
+            track = [
+                point
+                for point in candidate_track
+                if abs(point[0] - peak_frame) <= max_gap_frames
+            ]
+            if not track and candidate_track:
+                track = [min(candidate_track, key=lambda p: abs(p[0] - peak_frame))]
+            window = make_window(track)
+            if window is not None:
+                windows.append(window)
+
+    return sorted(windows, key=lambda window: window.impact_frame)
+
+
+def detect_wall_impacts(
+    video_path: Union[str, Path],
+    calibration: WallCalibration,
+    *,
+    frame_skip: int = 1,
+) -> List[WallImpactResult]:
+    """Detect multiple wall-impact candidates from a full video.
+
+    Parameters
+    ----------
+    video_path
+        Path to the video file.
+    calibration
+        A validated :class:`WallCalibration` instance.  Wall x pixel
+        coordinate is inferred from the right-most reference point.
+    frame_skip
+        Process one frame every *frame_skip* frames during scanning.
+
+    Returns
+    -------
+    List[WallImpactResult]
+        One result for each accepted impact window.
+    """
+    video_path = str(video_path)
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video: {video_path}")
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    cap.release()
+
+    if calibration.wall_reference_points:
+        wall_x_px = max(p.pixel[0] for p in calibration.wall_reference_points)
+    else:
+        wall_x_px = width * 0.75
+
+    scan = scan_wall_candidates(video_path, wall_x_px, frame_skip=frame_skip)
+    windows = segment_wall_impacts(
+        scan["candidate_track"],
+        scan["brightness_changes"],
+        scan["fps"],
+        wall_x_px,
+    )
+
+    results: List[WallImpactResult] = []
+    for window in windows:
+        impact_pixel = (window.impact_x_px, window.impact_y_px)
+        results.append(
+            WallImpactResult(
+                impact_frame=window.impact_frame,
+                impact_pixel=impact_pixel,
+                autonomous_frame=window.impact_frame,
+                autonomous_pixel=impact_pixel,
+                candidate_track=window.candidate_track,
+                warnings=[],
+                confidence={
+                    "track_length": len(window.candidate_track),
+                    "method": "multi_impact_segment",
+                    "score": window.confidence,
+                    "start_frame": window.start_frame,
+                    "end_frame": window.end_frame,
+                    "brightness_changes": window.brightness_changes,
+                },
+            )
+        )
+    return results
 
 
 def detect_wall_impact(
@@ -596,7 +918,10 @@ def estimate_pre_wall_speed(
 
 
 def _compute_landing(
-    h0: float, vz0: float, vx0: float, vy0: float,
+    h0: float,
+    vz0: float,
+    vx0: float,
+    vy0: float,
     gravity_m_s2: float,
 ) -> Tuple[float, float]:
     """Solve gravity-only projectile for time-of-flight and return (x, z).
@@ -606,7 +931,7 @@ def _compute_landing(
     x(t*) = vx0 * t*
     z(t*) = vz0 * t*
     """
-    discriminant = vy0 ** 2 + 2.0 * gravity_m_s2 * h0
+    discriminant = vy0**2 + 2.0 * gravity_m_s2 * h0
     t_flight = (vy0 + float(np.sqrt(max(0.0, discriminant)))) / gravity_m_s2
     return vx0 * t_flight, vz0 * t_flight
 
@@ -701,7 +1026,10 @@ def project_to_court(
             in_service_box=None,
             service_box_side=None,
             assumptions={"model": "gravity_only", "refused": True},
-            uncertainty={"landing_z_sensitivity_m": 0.0, "landing_x_sensitivity_m": 0.0},
+            uncertainty={
+                "landing_z_sensitivity_m": 0.0,
+                "landing_x_sensitivity_m": 0.0,
+            },
             warnings=["projection_refused"],
         )
 
@@ -712,7 +1040,10 @@ def project_to_court(
             in_service_box=None,
             service_box_side=None,
             assumptions={"model": "gravity_only", "refused": True},
-            uncertainty={"landing_z_sensitivity_m": 0.0, "landing_x_sensitivity_m": 0.0},
+            uncertainty={
+                "landing_z_sensitivity_m": 0.0,
+                "landing_x_sensitivity_m": 0.0,
+            },
             warnings=["projection_refused"],
         )
 
@@ -723,7 +1054,10 @@ def project_to_court(
             in_service_box=None,
             service_box_side=None,
             assumptions={"model": "gravity_only", "refused": True},
-            uncertainty={"landing_z_sensitivity_m": 0.0, "landing_x_sensitivity_m": 0.0},
+            uncertainty={
+                "landing_z_sensitivity_m": 0.0,
+                "landing_x_sensitivity_m": 0.0,
+            },
             warnings=["projection_refused"],
         )
 
@@ -734,7 +1068,7 @@ def project_to_court(
     speed = float(speed_result.speed_m_s)
 
     # Monocular vz assumption: project remaining speed onto z-axis
-    vz_sq = max(0.0, speed ** 2 - vx_wall ** 2 - vy_wall ** 2)
+    vz_sq = max(0.0, speed**2 - vx_wall**2 - vy_wall**2)
     vz_toward_wall = float(np.sqrt(vz_sq))
 
     # Court frame setup
@@ -759,7 +1093,7 @@ def project_to_court(
     z_plus, x_plus = [], []
     for speed_factor in (0.9, 1.1):
         s = speed * speed_factor
-        vz_sq_s = max(0.0, s ** 2 - vx_wall ** 2 - vy_wall ** 2)
+        vz_sq_s = max(0.0, s**2 - vx_wall**2 - vy_wall**2)
         vz_s = float(np.sqrt(vz_sq_s))
         lx_s, lz_rel_s = _compute_landing(h0, -vz_s, vx0, vy0, gravity_m_s2)
         z_plus.append(z_contact + lz_rel_s)
@@ -873,7 +1207,7 @@ Examples:
     parser.add_argument(
         "--manual-corrections",
         help=(
-            'Optional JSON mapping serve_index -> '
+            "Optional JSON mapping serve_index -> "
             '{"pixel_x": int, "pixel_y": int, "impact_frame": int (optional)}'
         ),
     )
@@ -918,7 +1252,9 @@ def _get_fps(video_path: str, fps_override: float | None = None) -> float:
     return float(fps)
 
 
-def _apply_override(calibration: WallCalibration, override: dict | None) -> WallCalibration:
+def _apply_override(
+    calibration: WallCalibration, override: dict | None
+) -> WallCalibration:
     """Apply per-video override dict onto a calibration instance."""
     if override is None:
         return calibration
@@ -1011,8 +1347,12 @@ def _process_video(
         annotated_path = output_dir / f"{video_stem}_annotated.mp4"
         try:
             render_annotated_video(
-                video_path, impact_result, speed_result,
-                projection_result, calibration, str(annotated_path),
+                video_path,
+                impact_result,
+                speed_result,
+                projection_result,
+                calibration,
+                str(annotated_path),
             )
             artifact_paths["annotated_video"] = str(annotated_path)
         except Exception as exc:
@@ -1023,8 +1363,12 @@ def _process_video(
         plots_dir.mkdir(parents=True, exist_ok=True)
         try:
             plot_paths = render_plots(
-                impact_result, speed_result, projection_result,
-                calibration, str(plots_dir), video_stem=video_stem,
+                impact_result,
+                speed_result,
+                projection_result,
+                calibration,
+                str(plots_dir),
+                video_stem=video_stem,
             )
             artifact_paths["plots"] = {k: str(v) for k, v in plot_paths.items()}
         except Exception as exc:
@@ -1032,8 +1376,12 @@ def _process_video(
 
     # --- Assemble WallAnalysisResult ---
     result = assemble_wall_analysis_result(
-        video_path, calibration, impact_result, speed_result,
-        projection_result, artifact_paths=artifact_paths,
+        video_path,
+        calibration,
+        impact_result,
+        speed_result,
+        projection_result,
+        artifact_paths=artifact_paths,
     )
 
     # --- Write JSON ---
@@ -1082,7 +1430,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         metadata = _load_json(args.metadata)
     except (FileNotFoundError, json.JSONDecodeError) as exc:
-        return _error_json(f"Failed to load metadata: {exc}", code="metadata_load_error")
+        return _error_json(
+            f"Failed to load metadata: {exc}", code="metadata_load_error"
+        )
 
     # Load optional override
     override = None
@@ -1090,7 +1440,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             override = _load_json(args.override)
         except (FileNotFoundError, json.JSONDecodeError) as exc:
-            return _error_json(f"Failed to load override: {exc}", code="override_load_error")
+            return _error_json(
+                f"Failed to load override: {exc}", code="override_load_error"
+            )
 
     # Load optional manual corrections
     manual_corrections = None
