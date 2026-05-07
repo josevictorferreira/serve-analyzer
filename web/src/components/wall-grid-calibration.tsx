@@ -113,6 +113,13 @@ function projectPoint(H: number[], world: [number, number]): [number, number] {
 
 const CORNER_NAMES = ['BL', 'BR', 'TL', 'TR'] as const;
 
+/**
+ * Generate a composite localStorage key from video metadata.
+ * Format: wall-cal-{filename}-{duration_sec}-{fps}-{frame_count}-{width}x{height}
+ */
+function getStorageKey(meta: WallVideoMetadataResponse): string {
+  return `wall-cal-${meta.filename}-${meta.duration_sec.toFixed(2)}-${meta.fps}-${meta.frame_count}-${meta.width}x${meta.height}`;
+}
 export function WallGridCalibration({
   videoUrl,
   videoMetadata,
@@ -187,6 +194,30 @@ export function WallGridCalibration({
     ]);
   }, [videoLoaded, videoMetadata.width, videoMetadata.height]);
 
+  // Restore calibration from localStorage when video metadata is available
+  useEffect(() => {
+    try {
+      const key = getStorageKey(videoMetadata);
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const saved = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof saved.gridWidth === 'string') setGridWidth(saved.gridWidth);
+        if (typeof saved.gridHeight === 'string') setGridHeight(saved.gridHeight);
+        if (typeof saved.bottomEdgeHeight === 'string') setBottomEdgeHeight(saved.bottomEdgeHeight);
+        if (typeof saved.contactHeight === 'string') setContactHeight(saved.contactHeight);
+        if (typeof saved.contactDistance === 'string') setContactDistance(saved.contactDistance);
+        if (typeof saved.cameraDistance === 'string') setCameraDistance(saved.cameraDistance);
+        if (Array.isArray(saved.corners)) setCorners(saved.corners as CornerHandle[]);
+        if (typeof saved.trimStart === 'number') setTrimStart(saved.trimStart);
+        if (typeof saved.trimEnd === 'number') setTrimEnd(saved.trimEnd);
+        if (typeof saved.currentFrame === 'number') setCurrentFrame(saved.currentFrame);
+      }
+    } catch {
+      // Corrupted or unavailable — silent
+    }
+  }, [videoMetadata]);
+
+
   // Load existing calibration on mount
   useEffect(() => {
     let cancelled = false;
@@ -243,7 +274,7 @@ export function WallGridCalibration({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [videoMetadata]);
 
   // Draw canvas: grid lines + corner handles + height markers
   useEffect(() => {
@@ -506,6 +537,9 @@ export function WallGridCalibration({
   const handleClearCalibration = useCallback(async () => {
     try {
       await deleteWallCalibration();
+      // Also clear local storage entry
+      const key = getStorageKey(videoMetadata);
+      localStorage.removeItem(key);
     } catch {
       // Best effort
     }
@@ -567,6 +601,28 @@ export function WallGridCalibration({
       if (response.point_count >= 4) {
         setSuccess(true);
         onCalibrated();
+
+        // Persist to localStorage for quick restore
+        try {
+          const key = getStorageKey(videoMetadata);
+          localStorage.setItem(
+            key,
+            JSON.stringify({
+              gridWidth,
+              gridHeight,
+              bottomEdgeHeight,
+              contactHeight,
+              contactDistance,
+              cameraDistance,
+              corners,
+              trimStart,
+              trimEnd,
+              currentFrame,
+            }),
+          );
+        } catch {
+          // Storage full or unavailable — non-fatal
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save calibration.');
