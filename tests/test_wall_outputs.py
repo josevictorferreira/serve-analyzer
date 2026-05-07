@@ -49,6 +49,7 @@ class TestWallOutputContracts(unittest.TestCase):
 
         # CSV row length matches CSV_COLUMNS
         serve = {
+            "impact_index": 0,
             "video": "test.mp4",
             "serve_index": 0,
             "impact_time_sec": 1.23,
@@ -109,6 +110,7 @@ class TestWallOutputContracts(unittest.TestCase):
         """Write rows via csv.writer, read back via csv.reader, verify header and data."""
         rows = [
             (
+                0,
                 "test.mp4",
                 0,
                 1.23,
@@ -125,6 +127,7 @@ class TestWallOutputContracts(unittest.TestCase):
                 "low_calibration_confidence",
             ),
             (
+                0,
                 "test.mp4",
                 1,
                 2.50,
@@ -245,9 +248,12 @@ class TestServeToCsvRowEdgeCases(unittest.TestCase):
     def test_missing_fields_filled_with_none(self):
         serve = {"video": "v.mp4"}
         row = serve_to_csv_row(serve)
-        self.assertEqual(row[0], "v.mp4")
+        # impact_index is first column, defaults to 0 when absent
+        self.assertEqual(row[0], 0)
+        # video is second column
+        self.assertEqual(row[1], "v.mp4")
         # All other fields should be None (except warning_codes which is "")
-        for idx in range(1, len(CSV_COLUMNS) - 1):
+        for idx in range(2, len(CSV_COLUMNS) - 1):
             self.assertIsNone(row[idx])
         # warning_codes defaults to empty string
         self.assertEqual(row[-1], "")

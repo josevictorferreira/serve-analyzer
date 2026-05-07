@@ -201,6 +201,408 @@ def _find_ball_in_frame(
 
 @dataclass(frozen=True)
 class ImpactWindow:
+    """One candidate impact window found by multi-impact scanning.
+
+    Attributes
+    ----------
+    start_frame
+        First frame of the impact episode.
+    end_frame
+        Last frame of the impact episode.
+    candidate_track
+        Ball-position candidates as ``(frame, x_px, y_px)`` within this episode.
+    brightness_changes
+        Brightness deltas as ``(frame, delta)`` within this episode.
+    impact_frame
+        Best-guess impact frame within this episode.
+    impact_x_px
+        Impact pixel x coordinate.
+    impact_y_px
+        Impact pixel y coordinate.
+    confidence
+        Composite confidence score ``[0, 1]`` for this window.
+    """
+
+    start_frame: int
+    end_frame: int
+    candidate_track: List[Tuple[int, float, float]]
+    brightness_changes: List[Tuple[int, float]]
+    impact_frame: int
+    impact_x_px: float
+    impact_y_px: float
+    confidence: float
+
+
+def scan_wall_candidates(
+    video_path: Union[str, Path],
+    wall_x_px: float,
+    *,
+    frame_skip: int = 1,
+    search_half_width: float = 60.0,
+    brightness_threshold: float = 200.0,
+) -> Dict[str, Any]:
+    """One full video pass that collects candidate track + brightness changes.
+
+    Opens the video, iterates frames (optionally skipping via *frame_skip*),
+    and for each processed frame calls the same logic as
+    :func:`_find_ball_in_frame` to locate the brightest blob near
+    *wall_x_px*.
+
+    Parameters
+    ----------
+    video_path
+        Path to the video file.
+    wall_x_px
+        Wall x pixel coordinate.
+    frame_skip
+        Process every Nth frame (default 1 = every frame).  Real frame
+        indices are preserved regardless of skip.
+    search_half_width
+        Horizontal search band half-width around *wall_x_px*.
+    brightness_threshold
+        Threshold for bright blob detection.
+
+    Returns
+    -------
+    dict
+        Keys: ``candidate_track``, ``brightness_changes``, ``fps``,
+        ``frame_count``, ``width``, ``height``.
+    """
+    video_path = str(video_path)
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video: {video_path}")
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = float(cap.get(cv2.CAP_PROP_FPS))
+
+    if fps <= 0:
+        fps = 30.0
+
+    search_half_width = max(search_half_width, width * 0.15)
+
+    candidate_track: List[Tuple[int, float, float]] = []
+    brightness_changes: List[Tuple[int, float]] = []
+    prev_gray: Optional[np.ndarray] = None
+
+    for frame_idx in range(total_frames):
+        if frame_skip > 1 and frame_idx % frame_skip != 0:
+            cap.grab()
+            continue
+
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        pos = _find_ball_in_frame(
+            gray,
+            wall_x_px=wall_x_px,
+            search_half_width=search_half_width,
+            brightness_threshold=brightness_threshold,
+        )
+
+        if pos is not None:
+            candidate_track.append((frame_idx, pos[0], pos[1]))
+
+        x_lo = max(0, int(wall_x_px - 15))
+        x_hi = min(width, int(wall_x_px + 15))
+        wall_band = gray[:, x_lo:x_hi]
+        mean_brightness = float(np.mean(wall_band)) if wall_band.size > 0 else 0.0
+
+        if prev_gray is not None:
+            prev_band = prev_gray[:, x_lo:x_hi]
+            prev_brightness = float(np.mean(prev_band)) if prev_band.size > 0 else 0.0
+            delta = abs(mean_brightness - prev_brightness)
+            brightness_changes.append((frame_idx, delta))
+
+        prev_gray = gray
+
+    cap.release()
+
+    return {
+        "candidate_track": candidate_track,
+        "brightness_changes": brightness_changes,
+        "fps": fps,
+        "frame_count": total_frames,
+        "width": width,
+        "height": height,
+    }
+
+
+def estimate_local_bounce_score(
+    episode: List[Tuple[int, float, float]],
+    frame: int,
+    window: int = 5,
+) -> float:
+    """Detect approach→retreat direction change around *frame* in an episode.
+
+    Looks at x-velocity before and after the given frame within ±*window*
+    frames.  Returns ``1.0`` if the ball approaches the wall (x increasing)
+    then retreats (x decreasing), ``0.0`` otherwise.
+
+    Parameters
+    ----------
+    episode
+        List of ``(frame_idx, x_px, y_px)`` track points.
+    frame
+        The candidate impact frame to check.
+    window
+        Number of frames to look before/after for velocity sign.
+
+    Returns
+    -------
+    float
+        ``1.0`` if bounce detected, ``0.0`` otherwise.
+    """
+    if len(episode) < 3:
+        return 0.0
+
+    frame_to_x = {f: x for f, x, _ in episode}
+
+    before_x = [frame_to_x[f] for f in sorted(frame_to_x)
+                if f < frame and f >= frame - window]
+    after_x = [frame_to_x[f] for f in sorted(frame_to_x)
+               if f > frame and f <= frame + window]
+
+    if len(before_x) < 2 or len(after_x) < 2:
+        return 0.0
+
+    v_before = before_x[-1] - before_x[0]
+    v_after = after_x[-1] - after_x[0]
+
+    if v_before > 0 and v_after < 0:
+        return 1.0
+
+    return 0.0
+
+
+def segment_wall_impacts(
+    candidate_track: List[Tuple[int, float, float]],
+    brightness_changes: List[Tuple[int, float]],
+    wall_x_px: float,
+    fps: float,
+) -> List[ImpactWindow]:
+    """Split candidate track into impact episodes using gap-based splitting.
+
+    Parameters
+    ----------
+    candidate_track
+        Full candidate track from :func:`scan_wall_candidates`.
+    brightness_changes
+        Brightness deltas from :func:`scan_wall_candidates`.
+    wall_x_px
+        Wall x pixel coordinate.
+    fps
+        Video frame rate.
+
+    Returns
+    -------
+    list of ImpactWindow
+        Detected impact windows, sorted by ``start_frame``.
+    """
+    if len(candidate_track) < 3:
+        return []
+
+    max_gap_frames = max(1, round(fps * 0.25))
+    min_window_frames = max(2, round(fps * 0.08))
+
+    # --- Gap-based splitting ---
+    episodes: List[List[Tuple[int, float, float]]] = []
+    current_episode: List[Tuple[int, float, float]] = [candidate_track[0]]
+
+    for i in range(1, len(candidate_track)):
+        gap = candidate_track[i][0] - candidate_track[i - 1][0]
+        if gap > max_gap_frames:
+            if len(current_episode) >= min_window_frames:
+                episodes.append(current_episode)
+            current_episode = [candidate_track[i]]
+        else:
+            current_episode.append(candidate_track[i])
+
+    if len(current_episode) >= min_window_frames:
+        episodes.append(current_episode)
+
+    if not episodes:
+        return []
+
+    # --- Score each episode ---
+    brightness_dict = {f: d for f, d in brightness_changes}
+    windows: List[ImpactWindow] = []
+
+    for ep in episodes:
+        start_frame = ep[0][0]
+        end_frame = ep[-1][0]
+
+        best_idx = 0
+        best_dist = float("inf")
+        for i, (fidx, x_px, y_px) in enumerate(ep):
+            dist = abs(x_px - wall_x_px)
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = i
+
+        impact_frame = ep[best_idx][0]
+        impact_x_px = ep[best_idx][1]
+        impact_y_px = ep[best_idx][2]
+
+        search_hw = max(60.0, abs(wall_x_px) * 0.15) if wall_x_px > 0 else 60.0
+        wall_proximity = max(0.0, 1.0 - best_dist / search_hw) if search_hw > 0 else 0.0
+
+        ep_brightness = [brightness_dict.get(f, 0.0)
+                         for f in range(start_frame, end_frame + 1)]
+        peak_brightness = max(ep_brightness) if ep_brightness else 0.0
+        brightness_score = min(1.0, peak_brightness / 50.0)
+
+        bounce_score = estimate_local_bounce_score(ep, impact_frame)
+
+        confidence = (0.60 * wall_proximity
+                      + 0.30 * brightness_score
+                      + 0.10 * bounce_score)
+
+        if confidence < 0.35:
+            continue
+
+        ep_bc = [(f, d) for f, d in brightness_changes
+                 if start_frame <= f <= end_frame]
+
+        windows.append(ImpactWindow(
+            start_frame=start_frame,
+            end_frame=end_frame,
+            candidate_track=list(ep),
+            brightness_changes=ep_bc,
+            impact_frame=impact_frame,
+            impact_x_px=impact_x_px,
+            impact_y_px=impact_y_px,
+            confidence=confidence,
+        ))
+
+    # --- Fallback: scipy.signal.find_peaks if gap-based finds 0 ---
+    if not windows:
+        try:
+            from scipy.signal import find_peaks
+
+            if brightness_changes:
+                frames_bc = [f for f, _ in brightness_changes]
+                track_signal = {
+                    f: max(0.0, 1.0 - abs(x - wall_x_px) / max(60.0, abs(wall_x_px) * 0.15))
+                    for f, x, _ in candidate_track
+                }
+
+                combined = []
+                for f, d in brightness_changes:
+                    prox = track_signal.get(f, 0.0)
+                    combined.append(0.6 * prox + 0.4 * min(1.0, d / 50.0))
+
+                if combined:
+                    peaks, _ = find_peaks(
+                        combined,
+                        distance=max(1, round(fps * 0.4)),
+                        height=0.25,
+                    )
+
+                    for peak_idx in peaks:
+                        peak_frame = frames_bc[peak_idx]
+                        near_track = [
+                            (f, x, y) for f, x, y in candidate_track
+                            if abs(f - peak_frame) <= round(fps * 0.15)
+                        ]
+
+                        if len(near_track) < min_window_frames:
+                            continue
+
+                        best_pt = min(near_track,
+                                      key=lambda p: abs(p[1] - wall_x_px))
+
+                        windows.append(ImpactWindow(
+                            start_frame=near_track[0][0],
+                            end_frame=near_track[-1][0],
+                            candidate_track=near_track,
+                            brightness_changes=[
+                                (f, d) for f, d in brightness_changes
+                                if near_track[0][0] <= f <= near_track[-1][0]
+                            ],
+                            impact_frame=best_pt[0],
+                            impact_x_px=best_pt[1],
+                            impact_y_px=best_pt[2],
+                            confidence=0.3,
+                        ))
+        except ImportError:
+            pass
+
+    return windows
+
+
+def detect_wall_impacts(
+    video_path: Union[str, Path],
+    calibration: WallCalibration,
+    *,
+    frame_skip: int = 1,
+) -> List[WallImpactResult]:
+    """Detect multiple ball-against-wall impacts from video.
+
+    Orchestrates :func:`scan_wall_candidates` →
+    :func:`segment_wall_impacts` to find all impact events in a single
+    video.  Returns one :class:`WallImpactResult` per detected impact.
+
+    Parameters
+    ----------
+    video_path
+        Path to the video file.
+    calibration
+        A validated :class:`WallCalibration` instance.
+    frame_skip
+        Process every Nth frame (default 1).
+
+    Returns
+    -------
+    list of WallImpactResult
+        One result per detected impact, sorted by ``impact_frame``.
+    """
+    video_path = str(video_path)
+
+    if calibration.wall_reference_points:
+        wall_x_px = max(p.pixel[0] for p in calibration.wall_reference_points)
+    else:
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise IOError(f"Cannot open video: {video_path}")
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        cap.release()
+        wall_x_px = width * 0.75
+
+    scan = scan_wall_candidates(video_path, wall_x_px, frame_skip=frame_skip)
+
+    windows = segment_wall_impacts(
+        scan["candidate_track"],
+        scan["brightness_changes"],
+        wall_x_px,
+        scan["fps"],
+    )
+
+    results: List[WallImpactResult] = []
+    for window in windows:
+        results.append(WallImpactResult(
+            impact_frame=window.impact_frame,
+            impact_pixel=(window.impact_x_px, window.impact_y_px),
+            autonomous_frame=window.impact_frame,
+            autonomous_pixel=(window.impact_x_px, window.impact_y_px),
+            candidate_track=window.candidate_track,
+            warnings=[],
+            confidence={
+                "track_length": len(window.candidate_track),
+                "method": "multi_impact_scan",
+                "window_confidence": window.confidence,
+            },
+        ))
+
+    return results
+
+@dataclass(frozen=True)
+class ImpactWindow:
     """Candidate wall-impact window detected in a full-video scan.
 
     Attributes
@@ -1294,15 +1696,14 @@ def _process_video(
     no_plots: bool = False,
     manual_corrections: dict | None = None,
     fps_override: float | None = None,
-) -> dict:
+) -> list[dict]:
     """Run full analysis pipeline on one video and write artifacts.
 
-    Returns a dict with per-serve results for aggregation.
+    Returns a list of dicts with per-serve results for aggregation.
+    Multiple dicts are returned when multiple wall impacts are detected.
     """
     video_path_obj = Path(video_path)
     video_stem = video_path_obj.stem
-
-    # Load fps
     fps = _get_fps(video_path, fps_override)
 
     # Determine manual correction for serve_index 0 (MVP: one serve per video)
@@ -1310,7 +1711,6 @@ def _process_video(
     if manual_corrections is not None:
         correction = manual_corrections.get("0") or manual_corrections.get(0)
         if correction is not None:
-            # Normalize to expected dict shape
             px = correction.get("pixel_x")
             py = correction.get("pixel_y")
             if_f = correction.get("impact_frame")
@@ -1319,23 +1719,50 @@ def _process_video(
                 if if_f is not None:
                     correction["impact_frame"] = int(if_f)
 
-    # --- Detection ---
-    impact_result = detect_wall_impact(
-        video_path, calibration, manual_correction=correction
-    )
+    # --- Detection (multi-impact) ---
+    impact_results = detect_wall_impacts(video_path, calibration)
 
-    # --- Speed estimation ---
-    speed_result = estimate_pre_wall_speed(
-        impact_result, calibration, fps=fps, min_samples=4
-    )
+    # Fallback: if multi-impact found nothing, try single-impact
+    if not impact_results:
+        impact_results = [detect_wall_impact(
+            video_path, calibration, manual_correction=correction
+        )]
 
-    # --- Court projection ---
-    projection_result = project_to_court(speed_result, calibration)
+    # Apply manual correction to primary impact if provided
+    if correction is not None and impact_results:
+        primary = impact_results[0]
+        if "manual_correction_used" not in primary.warnings:
+            new_frame = correction.get("impact_frame", primary.impact_frame)
+            new_pixel = correction.get("impact_pixel", primary.impact_pixel)
+            impact_results[0] = WallImpactResult(
+                impact_frame=new_frame,
+                impact_pixel=new_pixel,
+                autonomous_frame=primary.autonomous_frame,
+                autonomous_pixel=primary.autonomous_pixel,
+                candidate_track=primary.candidate_track,
+                warnings=list(primary.warnings) + ["manual_correction_used"],
+                confidence=primary.confidence,
+            )
 
-    # --- Store fps in speed metadata for downstream impact_time_sec ---
-    speed_result.metadata["fps"] = fps
+    # --- Process each impact ---
+    per_impact: list[dict] = []
+    for idx, ir in enumerate(impact_results):
+        sr = estimate_pre_wall_speed(ir, calibration, fps=fps, min_samples=4)
+        sr.metadata["fps"] = fps
+        pr = project_to_court(sr, calibration)
+        per_impact.append({
+            "impact_index": idx,
+            "impact_result": ir,
+            "speed_result": sr,
+            "projection_result": pr,
+        })
 
-    # --- T10 artifact hooks ---
+    # --- Artifacts (primary impact only for MVP) ---
+    primary_data = per_impact[0]
+    primary_ir = primary_data["impact_result"]
+    primary_sr = primary_data["speed_result"]
+    primary_pr = primary_data["projection_result"]
+
     artifact_paths: dict[str, Any] = {"annotated_video": None, "plots": {}}
     try:
         from serve_analyzer.wall_artifacts import render_annotated_video, render_plots
@@ -1347,12 +1774,8 @@ def _process_video(
         annotated_path = output_dir / f"{video_stem}_annotated.mp4"
         try:
             render_annotated_video(
-                video_path,
-                impact_result,
-                speed_result,
-                projection_result,
-                calibration,
-                str(annotated_path),
+                video_path, primary_ir, primary_sr,
+                primary_pr, calibration, str(annotated_path),
             )
             artifact_paths["annotated_video"] = str(annotated_path)
         except Exception as exc:
@@ -1363,12 +1786,8 @@ def _process_video(
         plots_dir.mkdir(parents=True, exist_ok=True)
         try:
             plot_paths = render_plots(
-                impact_result,
-                speed_result,
-                projection_result,
-                calibration,
-                str(plots_dir),
-                video_stem=video_stem,
+                primary_ir, primary_sr, primary_pr,
+                calibration, str(plots_dir), video_stem=video_stem,
             )
             artifact_paths["plots"] = {k: str(v) for k, v in plot_paths.items()}
         except Exception as exc:
@@ -1376,39 +1795,47 @@ def _process_video(
 
     # --- Assemble WallAnalysisResult ---
     result = assemble_wall_analysis_result(
-        video_path,
-        calibration,
-        impact_result,
-        speed_result,
-        projection_result,
-        artifact_paths=artifact_paths,
+        video_path, calibration, primary_ir, primary_sr,
+        primary_pr, artifact_paths=artifact_paths,
+        per_impact_results=per_impact if len(per_impact) > 1 else None,
     )
 
     # --- Write JSON ---
     result_path = output_dir / "result.json"
     result_path.write_text(json.dumps(to_json(result), indent=2), encoding="utf-8")
 
-    # --- Write CSV ---
-    serve_row = {
-        "video": video_stem,
-        "serve_index": result.measured.get("serve_index", 0),
-        "impact_time_sec": result.measured.get("impact_time_sec"),
-        "impact_frame": result.measured.get("impact_frame"),
-        "wall_x_m": result.measured.get("wall_x_m"),
-        "wall_y_m": result.measured.get("wall_y_m"),
-        "speed_m_s": result.inferred.get("speed_m_s"),
-        "speed_km_h": result.inferred.get("speed_km_h"),
-        "speed_mph": result.inferred.get("speed_mph"),
-        "landing_x_m": result.inferred.get("landing_x_m"),
-        "landing_z_m": result.inferred.get("landing_z_m"),
-        "in_service_box": result.inferred.get("in_service_box"),
-        "confidence_score": result.confidence.get("aggregate_score"),
-        "warnings": result.warnings,
-    }
-    csv_path = output_dir / "result.csv"
-    write_csv(csv_path, [serve_to_csv_row(serve_row)])
+    # --- Write CSV (one row per impact) ---
+    serve_rows: list[dict] = []
+    for pi in per_impact:
+        ir = pi["impact_result"]
+        sr = pi["speed_result"]
+        pr = pi["projection_result"]
+        per_result = assemble_wall_analysis_result(
+            video_path, calibration, ir, sr, pr,
+        )
+        serve_row = {
+            "impact_index": pi["impact_index"],
+            "video": video_stem,
+            "serve_index": result.measured.get("serve_index", 0),
+            "impact_time_sec": per_result.measured.get("impact_time_sec"),
+            "impact_frame": per_result.measured.get("impact_frame"),
+            "wall_x_m": per_result.measured.get("wall_x_m"),
+            "wall_y_m": per_result.measured.get("wall_y_m"),
+            "speed_m_s": per_result.inferred.get("speed_m_s"),
+            "speed_km_h": per_result.inferred.get("speed_km_h"),
+            "speed_mph": per_result.inferred.get("speed_mph"),
+            "landing_x_m": per_result.inferred.get("landing_x_m"),
+            "landing_z_m": per_result.inferred.get("landing_z_m"),
+            "in_service_box": per_result.inferred.get("in_service_box"),
+            "confidence_score": per_result.confidence.get("aggregate_score"),
+            "warnings": per_result.warnings,
+        }
+        serve_rows.append(serve_row)
 
-    return serve_row
+    csv_path = output_dir / "result.csv"
+    write_csv(csv_path, [serve_to_csv_row(r) for r in serve_rows])
+
+    return serve_rows
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1495,7 +1922,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         video_output_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            row = _process_video(
+            rows = _process_video(
                 video_path,
                 calibration,
                 video_output_dir,
@@ -1504,7 +1931,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 manual_corrections=manual_corrections,
                 fps_override=args.fps,
             )
-            all_rows.append(row)
+            all_rows.extend(rows)
         except Exception as exc:
             sys.stderr.write(f"Error processing {video_path}: {exc}\n")
             return 1

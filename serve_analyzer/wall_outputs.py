@@ -135,6 +135,7 @@ def assemble_wall_analysis_result(
     projection_result: Any,
     *,
     artifact_paths: Dict[str, Any] | None = None,
+    per_impact_results: List[Dict[str, Any]] | None = None,
 ) -> WallAnalysisResult:
     """Compose a ``WallAnalysisResult`` from the 6 pipeline stages.
 
@@ -151,6 +152,10 @@ def assemble_wall_analysis_result(
         artifact_paths: Optional dict like
             ``{"annotated_video": Path | None, "plots": {"speed": Path | None, ...}}``.
             ``None`` values are preserved.
+        per_impact_results: Optional list of per-impact dicts, each containing
+            ``impact_index``, ``impact_result``, ``speed_result``,
+            ``projection_result``.  When provided, a ``measured.impacts``
+            array is added to the output.
 
     Returns:
         A fully populated ``WallAnalysisResult``.
@@ -182,6 +187,7 @@ def assemble_wall_analysis_result(
     # Compute wall-meter coordinates from impact_pixel via calibration homography.
     wall_x_m: float | None = None
     wall_y_m: float | None = None
+    H_inv: np.ndarray | None = None
     if (
         impact_result.impact_pixel is not None
         and hasattr(calibration, "wall_reference_points")
@@ -213,6 +219,74 @@ def assemble_wall_analysis_result(
         measured["calibration_reprojection_rms_px"] = homography_residuals.get(
             "reprojection_rms_px"
         )
+
+    # --- Multi-impact array ---
+    measured["impact_count"] = 1
+    measured["primary_impact_index"] = 0
+
+    if per_impact_results is not None and len(per_impact_results) > 1:
+        measured["impact_count"] = len(per_impact_results)
+
+        impacts_list: List[Dict[str, Any]] = []
+        for pi in per_impact_results:
+            pi_ir = pi["impact_result"]
+            pi_sr = pi["speed_result"]
+            pi_pr = pi["projection_result"]
+            pi_idx = pi["impact_index"]
+
+            # Compute wall_x_m/wall_y_m for this impact
+            pi_wall_x_m: float | None = None
+            pi_wall_y_m: float | None = None
+            if (
+                pi_ir.impact_pixel is not None
+                and H_inv is not None
+            ):
+                try:
+                    pi_wall_xy = pixel_to_wall(
+                        H_inv,
+                        np.array([list(pi_ir.impact_pixel)], dtype=np.float64),
+                    )
+                    pi_wall_x_m = float(pi_wall_xy[0, 0])
+                    pi_wall_y_m = float(pi_wall_xy[0, 1])
+                except Exception:
+                    pass
+
+            pi_impact_frame = pi_ir.impact_frame
+            pi_impact_time_sec = None
+            if pi_impact_frame is not None and fps is not None and fps > 0:
+                pi_impact_time_sec = pi_impact_frame / fps
+
+            impact_entry: Dict[str, Any] = {
+                "impact_index": pi_idx,
+                "measured": {
+                    "impact_frame": pi_impact_frame,
+                    "impact_time_sec": pi_impact_time_sec,
+                    "impact_pixel": pi_ir.impact_pixel,
+                    "wall_x_m": pi_wall_x_m,
+                    "wall_y_m": pi_wall_y_m,
+                    "raw_track_samples": len(pi_ir.candidate_track),
+                },
+                "inferred": {
+                    "speed_m_s": pi_sr.speed_m_s,
+                    "speed_km_h": pi_sr.speed_km_h,
+                    "speed_mph": pi_sr.speed_mph,
+                    "landing_x_m": pi_pr.landing_x_m,
+                    "landing_z_m": pi_pr.landing_z_m,
+                    "in_service_box": pi_pr.in_service_box,
+                    "service_box_side": pi_pr.service_box_side,
+                },
+                "confidence": {
+                    "impact_confidence": pi_ir.confidence,
+                    "speed_uncertainty_m_s": pi_sr.uncertainty_m_s,
+                },
+                "warnings": sorted(
+                    set(pi_ir.warnings + pi_sr.warnings + pi_pr.warnings)
+                ),
+            }
+            impacts_list.append(impact_entry)
+
+        measured["impacts"] = impacts_list
+
     # --- Inferred ---
     inferred: Dict[str, Any] = {
         "speed_m_s": speed_result.speed_m_s,
@@ -339,6 +413,9 @@ def serve_to_csv_row(serve: Dict[str, Any]) -> Tuple[Any, ...]:
     row: List[Any] = [None] * len(CSV_COLUMNS)
 
     for col_name in CSV_COLUMNS:
+        if col_name == "impact_index":
+            row[_CSV_COL_INDEX[col_name]] = serve.get(col_name, 0)
+            continue
         if col_name == "warning_codes":
             # Pull from "warnings" or "warning_codes", then flatten.
             raw_codes = serve.get("warnings", serve.get("warning_codes", []))

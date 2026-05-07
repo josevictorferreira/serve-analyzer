@@ -61,6 +61,7 @@ NET_HEIGHT_M: float = 0.914
 # ---------------------------------------------------------------------------
 
 CSV_COLUMNS: Tuple[str, ...] = (
+    "impact_index",
     "video",
     "serve_index",
     "impact_time_sec",

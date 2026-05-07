@@ -144,6 +144,7 @@ class TestWallMetadataSchema(unittest.TestCase):
     def test_csv_field_names_exposed(self):
         """Module exposes CSV_COLUMNS in the exact required order."""
         expected = (
+            "impact_index",
             "video",
             "serve_index",
             "impact_time_sec",
