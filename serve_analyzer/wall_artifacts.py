@@ -322,6 +322,7 @@ def render_plots(
     *,
     video_stem: str,
     overwrite: bool = True,
+    per_impact_results: list[dict] | None = None,
 ) -> dict[str, Path]:
     """Generate three analysis plots and return their paths.
 
@@ -333,6 +334,8 @@ def render_plots(
         output_dir: Directory to write PNG files.
         video_stem: Video filename stem (without extension) for naming.
         overwrite: If False and any output exists, raise FileExistsError.
+        per_impact_results: Optional list of per-impact dicts (impact_result,
+            speed_result, projection_result) for multi-impact plotting.
 
     Returns:
         Dict with keys ``"speed"``, ``"wall_impact"``, ``"court_landing"``
@@ -357,7 +360,7 @@ def render_plots(
                 raise FileExistsError(f"Output already exists: {p}")
 
     _plot_speed(impact_result, speed_result, calibration, str(speed_path))
-    _plot_wall_impact(impact_result, calibration, str(wall_path))
+    _plot_wall_impact(impact_result, calibration, str(wall_path), per_impact_results=per_impact_results)
     _plot_court_landing(projection_result, str(court_path))
 
     return {
@@ -460,8 +463,15 @@ def _plot_wall_impact(
     impact_result: WallImpactResult,
     calibration: WallCalibration,
     output_path: str,
+    per_impact_results: list[dict] | None = None,
 ) -> None:
-    """Wall-impact scatter with calibration reference points."""
+    """Wall-impact scatter with calibration reference points.
+
+    When *per_impact_results* contains more than one entry, all impact
+    points are plotted with numbered markers and speed annotations.
+    """
+    COLORS = ["#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#a65628", "#f781bf"]
+
     fig, ax = plt.subplots(figsize=(8, 6))
 
     # Calibration reference points
@@ -499,43 +509,73 @@ def _plot_wall_impact(
         )
         ax.add_patch(rect)
 
-    # Impact point
-    if (
-        impact_result.impact_pixel is not None
-        and impact_result.impact_frame is not None
-    ):
-        wc = _compute_wall_coords(
-            impact_result, calibration, impact_result.impact_pixel
-        )
-        if wc is not None:
-            ax.plot(wc[0], wc[1], "r*", markersize=20, label="Impact", zorder=5)
+    multi = per_impact_results is not None and len(per_impact_results) > 1
 
-    # Autonomous point (if different from final)
-    if (
-        impact_result.autonomous_pixel is not None
-        and impact_result.autonomous_frame is not None
-        and (
-            impact_result.autonomous_frame != impact_result.impact_frame
-            or impact_result.autonomous_pixel != impact_result.impact_pixel
-        )
-    ):
-        wc = _compute_wall_coords(
-            impact_result, calibration, impact_result.autonomous_pixel
-        )
-        if wc is not None:
-            ax.plot(
-                wc[0],
-                wc[1],
-                "o",
-                color="orange",
-                markersize=10,
-                label="Autonomous",
-                zorder=4,
+    if multi:
+        # Plot all impacts
+        for i, pi in enumerate(per_impact_results):
+            ir = pi["impact_result"]
+            sr = pi["speed_result"]
+            if ir.impact_pixel is None or ir.impact_frame is None:
+                continue
+            wc = _compute_wall_coords(ir, calibration, ir.impact_pixel)
+            if wc is None:
+                continue
+            speed_kmh = sr.speed_km_h if sr.speed_km_h is not None else float("nan")
+            if i == 0:
+                ax.plot(wc[0], wc[1], "r*", markersize=20, label=f"#{1} Impact", zorder=5)
+            else:
+                color = COLORS[(i - 1) % len(COLORS)]
+                ax.plot(wc[0], wc[1], "o", color=color, markersize=12, label=f"#{i + 1} Impact", zorder=5)
+            ax.annotate(
+                f"#{i + 1}: {speed_kmh:.1f} km/h",
+                (wc[0], wc[1]),
+                textcoords="offset points",
+                xytext=(8, 8),
+                fontsize=8,
+                fontweight="bold",
+                zorder=6,
             )
+        title = f"Wall Impact Locations ({len(per_impact_results)} impacts)"
+    else:
+        # Single impact (backward compat)
+        if (
+            impact_result.impact_pixel is not None
+            and impact_result.impact_frame is not None
+        ):
+            wc = _compute_wall_coords(
+                impact_result, calibration, impact_result.impact_pixel
+            )
+            if wc is not None:
+                ax.plot(wc[0], wc[1], "r*", markersize=20, label="Impact", zorder=5)
+
+        # Autonomous point (if different from final)
+        if (
+            impact_result.autonomous_pixel is not None
+            and impact_result.autonomous_frame is not None
+            and (
+                impact_result.autonomous_frame != impact_result.impact_frame
+                or impact_result.autonomous_pixel != impact_result.impact_pixel
+            )
+        ):
+            wc = _compute_wall_coords(
+                impact_result, calibration, impact_result.autonomous_pixel
+            )
+            if wc is not None:
+                ax.plot(
+                    wc[0],
+                    wc[1],
+                    "o",
+                    color="orange",
+                    markersize=10,
+                    label="Autonomous",
+                    zorder=4,
+                )
+        title = "Wall Impact Location"
 
     ax.set_xlabel("Wall X (m)")
     ax.set_ylabel("Wall Y (m)")
-    ax.set_title("Wall Impact Location")
+    ax.set_title(title)
     ax.set_aspect("equal")
     ax.legend()
     ax.grid(True, alpha=0.3)

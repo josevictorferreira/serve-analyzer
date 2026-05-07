@@ -1788,6 +1788,7 @@ def _process_video(
             plot_paths = render_plots(
                 primary_ir, primary_sr, primary_pr,
                 calibration, str(plots_dir), video_stem=video_stem,
+                per_impact_results=per_impact if len(per_impact) > 1 else None,
             )
             artifact_paths["plots"] = {k: str(v) for k, v in plot_paths.items()}
         except Exception as exc:
