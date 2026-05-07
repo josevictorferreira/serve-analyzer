@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { WallUploadStep, WallMetadataDisplay } from './wall-upload-step';
-import { WallCalibrationCanvas, type CalibrationPoint } from './wall-calibration-canvas';
-import { WallAssumptionsForm } from './wall-assumptions-form';
+import { WallGridCalibration } from './wall-grid-calibration';
 import { WallAnalyzeStep } from './wall-analyze-step';
 import { WallResultsDashboard } from './wall-results-dashboard';
 import { resetWallJob } from '@/lib/wall-api';
@@ -46,16 +45,12 @@ export function WallWorkflow() {
   const [resetting, setResetting] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<Record<string, unknown> | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [calibrationPoints, setCalibrationPoints] = useState<CalibrationPoint[]>([]);
-  const [currentFrame, setCurrentFrame] = useState(0);
 
   const activeStep = phaseToActiveStep(phase);
 
   const handleUploadComplete = useCallback((data: WallVideoUploadResponse) => {
     setVideoData(data);
     setPhase('uploaded');
-    setCalibrationPoints([]);
-    setCurrentFrame(0);
   }, []);
 
   const handleReset = useCallback(async () => {
@@ -67,8 +62,6 @@ export function WallWorkflow() {
     } finally {
       setVideoData(null);
       setPhase('idle');
-      setCalibrationPoints([]);
-      setCurrentFrame(0);
       setAnalysisResult(null);
       setAnalysisError(null);
       setResetting(false);
@@ -118,19 +111,10 @@ export function WallWorkflow() {
         {activeStep === 'calibrate' && videoData && (
           <div className="w-full max-w-3xl space-y-6">
             <WallMetadataDisplay data={videoData} />
-            <WallCalibrationCanvas
+            <WallGridCalibration
               videoUrl={videoData.video_url}
               videoMetadata={videoData}
-              points={calibrationPoints}
-              onPointsChange={setCalibrationPoints}
-              currentFrame={currentFrame}
-              onFrameChange={setCurrentFrame}
-            />
-            <WallAssumptionsForm
-              calibrationPoints={calibrationPoints}
               videoId={videoData.video_id}
-              calibrationFrame={currentFrame}
-              fps={videoData.fps}
               onCalibrated={() => setPhase('configured')}
             />
           </div>
