@@ -2,10 +2,22 @@
   "active_plan": "/home/josevictor/Workspace/serve-analyzer/.sisyphus/plans/web-wall-serve-analysis.md",
   "started_at": "2026-05-06T16:51:01.720Z",
   "session_ids": [
-    "ses_2055faf40fferna1knaYcheIf2"
+    "ses_2055faf40fferna1knaYcheIf2",
+    "ses_1fd75b56fffeE9alvGUbSnT2YG",
+    "ses_1fd082957ffepy4kaXrU1tV5k4",
+    "ses_1fd0827a0ffe2u2yJb4Aj0sNt8",
+    "ses_1fce4e683ffedroAFjpqUNtJrg",
+    "ses_1fce4a875ffewCQ41xXy8XAEoy",
+    "ses_1fca6b2c2ffeiVLxmO9FfKPiQd"
   ],
   "session_origins": {
-    "ses_2055faf40fferna1knaYcheIf2": "direct"
+    "ses_2055faf40fferna1knaYcheIf2": "direct",
+    "ses_1fd75b56fffeE9alvGUbSnT2YG": "appended",
+    "ses_1fd082957ffepy4kaXrU1tV5k4": "appended",
+    "ses_1fd0827a0ffe2u2yJb4Aj0sNt8": "appended",
+    "ses_1fce4e683ffedroAFjpqUNtJrg": "appended",
+    "ses_1fce4a875ffewCQ41xXy8XAEoy": "appended",
+    "ses_1fca6b2c2ffeiVLxmO9FfKPiQd": "appended"
   },
   "plan_name": "web-wall-serve-analysis",
   "agent": "atlas",
