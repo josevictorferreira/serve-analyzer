@@ -43,8 +43,8 @@ categorize:
 		fi; \
 		echo "Starting annotation backend on http://127.0.0.1:8000"; \
 		python -m web.backend & backend_pid=$$!; \
-		echo "Starting annotation UI on http://localhost:5173"; \
-		(cd web && npm run dev) & frontend_pid=$$!; \
+		echo "Starting annotation UI on http://0.0.0.0:5173"; \
+		(cd web && npm run dev -- --host 0.0.0.0) & frontend_pid=$$!; \
 		trap "kill $$backend_pid $$frontend_pid 2>/dev/null || true" INT TERM EXIT; \
 		wait -n $$backend_pid $$frontend_pid; \
 		status=$$?; \

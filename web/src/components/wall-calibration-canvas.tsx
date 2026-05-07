@@ -4,6 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { WallVideoMetadataResponse } from '@/lib/wall-types';
 import { Trash2, X } from 'lucide-react';
 
+function uuid(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 export interface CalibrationPoint {
   id: string;
   pixelX: number;
@@ -101,7 +108,7 @@ export function WallCalibrationCanvas({
       const pixelY = Math.round((clientY / displaySize.height) * videoMetadata.height);
 
       const newPoint: CalibrationPoint = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         pixelX: Math.max(0, Math.min(pixelX, videoMetadata.width - 1)),
         pixelY: Math.max(0, Math.min(pixelY, videoMetadata.height - 1)),
       };
