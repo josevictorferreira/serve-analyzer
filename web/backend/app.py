@@ -626,6 +626,8 @@ async def analyze_wall() -> dict[str, str]:
                 video_id,
                 session.metadata.duration_sec,
                 on_progress=_on_progress,
+                trim_start_frame=cal_entry.get("trim_start_frame"),
+                trim_end_frame=cal_entry.get("trim_end_frame"),
             )
             set_wall_state({"status": WallJobPhase.DONE, "result": result})
         except Exception as exc:

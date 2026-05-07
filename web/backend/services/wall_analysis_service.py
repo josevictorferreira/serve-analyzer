@@ -54,6 +54,8 @@ def run_wall_analysis(
     video_id: str,
     video_duration_sec: float,
     on_progress: Optional[Callable[[str], None]] = None,
+    trim_start_frame: Optional[int] = None,
+    trim_end_frame: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Run wall analysis pipeline and return normalized six-section result.
 
@@ -85,6 +87,8 @@ def run_wall_analysis(
         output_dir,
         no_video=False,
         no_plots=False,
+        trim_start_frame=trim_start_frame,
+        trim_end_frame=trim_end_frame,
     )
 
     if on_progress is not None:

@@ -595,6 +595,8 @@ export function WallGridCalibration({
           serve_contact_height_m: ch,
           wall_reference_points: wallPoints,
         },
+        trim_start_frame: trimStart,
+        trim_end_frame: trimEnd,
       };
 
       const response = await saveWallCalibration(request);

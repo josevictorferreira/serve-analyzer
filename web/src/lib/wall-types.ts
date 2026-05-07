@@ -42,6 +42,8 @@ export interface WallCalibrationRequest {
   video_override?: Record<string, unknown> | null;
   intrinsics?: Record<string, unknown> | null;
   manual_corrections?: Record<string, unknown> | null;
+  trim_start_frame?: number | null;
+  trim_end_frame?: number | null;
 }
 
 export interface WallCalibrationResponse {
@@ -57,6 +59,8 @@ export interface WallCalibrationGetResponse {
   calibration: Record<string, unknown>;
   point_count: number;
   rms_m?: number | null;
+  trim_start_frame?: number | null;
+  trim_end_frame?: number | null;
 }
 
 export interface WallJobStatus {

@@ -91,6 +91,8 @@ class WallCalibrationRequest(BaseModel):
     video_override: Optional[Dict[str, Any]] = None
     intrinsics: Optional[Dict[str, Any]] = None
     manual_corrections: Optional[Dict[str, Any]] = None
+    trim_start_frame: Optional[int] = None
+    trim_end_frame: Optional[int] = None
 
 
 class WallCalibrationResponse(BaseModel):
@@ -109,6 +111,8 @@ class WallCalibrationGetResponse(BaseModel):
     calibration_time_sec: float
     calibration: Dict[str, Any]
     point_count: int
+    trim_start_frame: Optional[int] = None
+    trim_end_frame: Optional[int] = None
     rms_m: Optional[float] = None
 
 

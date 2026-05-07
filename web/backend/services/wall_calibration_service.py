@@ -16,6 +16,8 @@ def store_calibration(
     calibration_frame: int,
     calibration_time_sec: float,
     calibration: WallCalibration,
+    trim_start_frame: Optional[int] = None,
+    trim_end_frame: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Persist a validated WallCalibration alongside video/frame metadata.
 
@@ -43,6 +45,8 @@ def store_calibration(
             "calibration_time_sec": calibration_time_sec,
             "calibration": calibration,
             "result": result,
+            "trim_start_frame": trim_start_frame,
+            "trim_end_frame": trim_end_frame,
         }
     return result
 
@@ -60,6 +64,8 @@ def get_calibration() -> Optional[Dict[str, Any]]:
             "calibration": entry["calibration"].to_dict(),
             "point_count": entry["result"]["point_count"],
             "rms_m": entry["result"]["rms_m"],
+            "trim_start_frame": entry.get("trim_start_frame"),
+            "trim_end_frame": entry.get("trim_end_frame"),
         }
 
 
@@ -97,6 +103,9 @@ def validate_and_store(payload: Dict[str, Any]) -> Dict[str, Any]:
     calibration_time_sec = float(payload["calibration_time_sec"])
     cleaned = _strip_none_values(payload)
     calibration = WallCalibration.from_dict(cleaned)
+    trim_start_frame = payload.get("trim_start_frame")
+    trim_end_frame = payload.get("trim_end_frame")
     return store_calibration(
-        video_id, calibration_frame, calibration_time_sec, calibration
+        video_id, calibration_frame, calibration_time_sec, calibration,
+        trim_start_frame=trim_start_frame, trim_end_frame=trim_end_frame,
     )
